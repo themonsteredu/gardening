@@ -8,6 +8,9 @@
 # production
 /build
 
+# vercel local project metadata
+/.vercel
+
 # local environment files
 .env*
 !.env.example
