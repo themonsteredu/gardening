@@ -67,7 +67,7 @@ export function StoredSiteImagePreview({
             unoptimized
           />
         ) : null}
-        <span className="source-layer-badge">LAYER 1 · 원본 이미지</span>
+        <span className="source-layer-badge">학교 사진</span>
       </div>
       {showDetails ? (
         <div className="stored-site-preview__details">

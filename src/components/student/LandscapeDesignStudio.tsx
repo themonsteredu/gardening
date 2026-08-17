@@ -9,7 +9,6 @@ import {
   type PlanLandscapeMaterial,
 } from "@/data/landscape-materials";
 import type {
-  LandscapeMaterialCategory,
   LandscapeObject,
   Point2D,
   SchoolProject,
@@ -24,8 +23,6 @@ import {
 } from "@/lib/landscape-design";
 import {
   getEditableZoneFeatures,
-  getExistingSiteFeatures,
-  getFeatureOption,
   normalizePointerPoint,
   pointsToSvg,
 } from "@/lib/site-plan";
@@ -40,20 +37,18 @@ import {
 import { getSiteImageFile } from "@/lib/site-image-store";
 import { useBrowserStorageValue, writeBrowserStorage } from "@/lib/use-browser-storage";
 
-const MATERIAL_CATEGORIES = Object.keys(LANDSCAPE_CATEGORY_LABELS) as LandscapeMaterialCategory[];
+const PRIMARY_MATERIAL_IDS = ["tree-canopy", "pine", "flower", "lawn", "bench", "rock"];
 
 export function LandscapeDesignStudio({
   project,
   nickname,
   sessionId,
-  onBack,
   onPreview3D,
   onContinue,
 }: {
   project: SchoolProject;
   nickname: string;
   sessionId: string;
-  onBack: () => void;
   onPreview3D: () => void;
   onContinue: () => void;
 }) {
@@ -75,7 +70,6 @@ export function LandscapeDesignStudio({
       sitePlan={sitePlan}
       storedDesign={storedDesign}
       designStorageKey={designStorageKey}
-      onBack={onBack}
       onPreview3D={onPreview3D}
       onContinue={onContinue}
     />
@@ -90,7 +84,6 @@ function LandscapeDesignWorkspace({
   sitePlan,
   storedDesign,
   designStorageKey,
-  onBack,
   onPreview3D,
   onContinue,
 }: {
@@ -101,14 +94,13 @@ function LandscapeDesignWorkspace({
   sitePlan: SitePlan | null;
   storedDesign: StudentLandscapeDesign | null;
   designStorageKey: string;
-  onBack: () => void;
   onPreview3D: () => void;
   onContinue: () => void;
 }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const movingObjectIdRef = useRef<string | null>(null);
   const hasUnsavedChangeRef = useRef(false);
-  const [category, setCategory] = useState<LandscapeMaterialCategory>("planting");
+  const [showMore, setShowMore] = useState(false);
   const [activeMaterialId, setActiveMaterialId] = useState<string | null>(null);
   const [objects, setObjects] = useState<LandscapeObject[]>(() =>
     storedDesign?.schoolProjectId === project.id ? storedDesign.objects : [],
@@ -116,18 +108,19 @@ function LandscapeDesignWorkspace({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
-  const [notice, setNotice] = useState("재료를 드래그하거나 선택한 뒤 도면을 눌러 배치하세요.");
+  const [notice, setNotice] = useState("재료를 끌어 사진 위에 놓아보세요.");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "loaded">(
     storedDesign && storedDesign.objects.length > 0 ? "loaded" : "idle",
   );
 
   const activeImage = siteImage?.id === project.siteImageId ? siteImage : null;
   const activePlan = sitePlan?.id === project.sitePlanId ? sitePlan : null;
-  const facilities = activePlan ? getExistingSiteFeatures(activePlan.features) : [];
   const zones = activePlan ? getEditableZoneFeatures(activePlan.features) : [];
   const selectedObject = objects.find((object) => object.id === selectedId) ?? null;
   const selectedMaterial = selectedObject ? findLandscapeMaterial(selectedObject.materialId) : null;
-  const paletteMaterials = LANDSCAPE_MATERIALS.filter((material) => material.category === category);
+  const paletteMaterials = showMore
+    ? LANDSCAPE_MATERIALS
+    : LANDSCAPE_MATERIALS.filter((material) => PRIMARY_MATERIAL_IDS.includes(material.id));
   const designId = storedDesign?.id ?? `landscape-design-${sessionId}`;
 
   const persistDesign = useCallback((nextObjects: LandscapeObject[]) => {
@@ -187,7 +180,7 @@ function LandscapeDesignWorkspace({
     const material = findLandscapeMaterial(materialId);
     if (!material) return;
     if (!isFootprintInsideEditableZones(point, getMaterialFootprintRadius(material), zones)) {
-      setNotice("연두색 조경 가능 영역 안에만 재료를 배치할 수 있습니다.");
+      setNotice("초록색 경계 안에만 재료를 놓을 수 있어요.");
       return;
     }
     const id = `landscape-object-${crypto.randomUUID()}`;
@@ -233,36 +226,33 @@ function LandscapeDesignWorkspace({
     if (!selectedObject) return;
     changeObjects((current) => current.filter((object) => object.id !== selectedObject.id));
     setSelectedId(null);
-    setNotice("재료를 도면에서 삭제했습니다.");
+    setNotice("재료를 지웠습니다.");
   }
 
-  function moveLayer(direction: "front" | "back") {
-    if (!selectedObject || objects.length < 2) return;
-    const zValues = objects.map((object) => object.zIndex);
-    updateObject(selectedObject.id, {
-      zIndex: direction === "front" ? Math.max(...zValues) + 1 : Math.min(...zValues) - 1,
-    });
-  }
-
-  function nudgeSelected(dx: number, dy: number) {
+  function resizeSelected(delta: number) {
     if (!selectedObject || !selectedMaterial) return;
-    const point = { x: selectedObject.x + dx, y: selectedObject.y + dy };
-    const radius = getMaterialFootprintRadius(selectedMaterial, selectedObject.scale);
+    const nextScale = Math.max(0.5, Math.min(2, selectedObject.scale + delta));
+    const point = { x: selectedObject.x, y: selectedObject.y };
+    const radius = getMaterialFootprintRadius(selectedMaterial, nextScale);
     if (!isFootprintInsideEditableZones(point, radius, zones)) {
-      setNotice("재료 전체가 조경 가능 영역 안에 있어야 합니다.");
+      setNotice("영역 안에서만 크게 만들 수 있어요.");
       return;
     }
-    updateObject(selectedObject.id, point);
-    setNotice(`${selectedMaterial.name} 위치를 조금 이동했습니다.`);
+    updateObject(selectedObject.id, { scale: nextScale });
+    setNotice(delta > 0 ? "재료를 크게 만들었습니다." : "재료를 작게 만들었습니다.");
+  }
+
+  function rotateSelected() {
+    if (!selectedObject) return;
+    updateObject(selectedObject.id, { rotation: (selectedObject.rotation + 45) % 360 });
+    setNotice("재료를 돌렸습니다.");
   }
 
   if (!activeImage || !activePlan || zones.length === 0) {
     return (
       <main className="student-design-empty">
-        <p className="eyebrow">SITE DESIGN</p>
-        <h1>설계 도면을 준비하고 있습니다.</h1>
-        <p>선생님이 학교 이미지와 조경 가능 영역을 등록하면 재료 배치를 시작할 수 있습니다.</p>
-        <button className="button button--quiet" type="button" onClick={onBack}>공간 확인으로 돌아가기</button>
+        <h1>학교 공간 준비 중</h1>
+        <p>선생님이 학교 사진과 조경할 공간을 표시하면 바로 시작할 수 있어요.</p>
       </main>
     );
   }
@@ -272,18 +262,11 @@ function LandscapeDesignWorkspace({
     : "4 / 3";
 
   return (
-    <main className="student-design-studio">
+    <main className={`student-design-studio ${selectedObject ? "has-selection" : ""}`}>
       <aside className="material-library" aria-label="조경 재료함">
         <div className="design-panel-heading">
-          <button type="button" onClick={onBack}>← 공간 확인</button>
-          <p className="eyebrow">MATERIAL LIBRARY</p>
-          <h1>조경 재료함</h1>
-          <span>도면으로 끌어놓거나 재료 선택 후 공간을 누르세요.</span>
-        </div>
-        <div className="material-category-tabs" role="tablist" aria-label="재료 카테고리">
-          {MATERIAL_CATEGORIES.map((item) => (
-            <button key={item} type="button" role="tab" aria-selected={category === item} className={category === item ? "is-active" : ""} onClick={() => setCategory(item)}>{LANDSCAPE_CATEGORY_LABELS[item]}</button>
-          ))}
+          <h1>재료</h1>
+          <span>사진 위에 끌어 놓으세요.</span>
         </div>
         <div className="material-grid">
           {paletteMaterials.map((material) => (
@@ -295,7 +278,7 @@ function LandscapeDesignWorkspace({
               onClick={() => {
                 setActiveMaterialId((current) => current === material.id ? null : material.id);
                 setSelectedId(null);
-                setNotice(`${material.name} 선택됨 · 연두색 영역을 눌러 배치하세요.`);
+                setNotice(`${material.name} 선택됨 · 초록색 경계 안을 눌러보세요.`);
               }}
               onDragStart={(event) => {
                 event.dataTransfer.setData("text/gardening-material", material.id);
@@ -303,15 +286,18 @@ function LandscapeDesignWorkspace({
               }}
             >
               <MaterialSymbol material={material} />
-              <span><strong>{material.name}</strong><small>{material.realWidthMeters}m 기준</small></span>
+              <span><strong>{material.shortLabel}</strong></span>
             </button>
           ))}
+          <button className="material-more-button" type="button" onClick={() => setShowMore((current) => !current)}>
+            <span aria-hidden="true">＋</span><strong>{showMore ? "간단히" : "더보기"}</strong>
+          </button>
         </div>
       </aside>
 
       <section className="student-plan-workspace">
         <header className="student-plan-toolbar">
-          <div><span>PART 1 · 도면 설계</span><strong>{project.schoolName} 조경 배치도</strong></div>
+          <div><span>우리 학교 조경하기</span><strong>{project.schoolName}</strong></div>
           <div className="student-plan-save-summary">
             <span className={`save-state save-state--${saveState}`}>
               {saveState === "saving" ? "자동 저장 중" : saveState === "loaded" ? "저장된 설계 불러옴" : saveState === "saved" ? "자동 저장됨" : "새 설계"}
@@ -335,21 +321,14 @@ function LandscapeDesignWorkspace({
             const point = pointFromClient(event.clientX, event.clientY);
             if (point) placeMaterial(activeMaterialId, point);
           }}
-          aria-label="학생 학교 조경 설계 도면"
+          aria-label="학교 사진 위 조경 재료 배치"
         >
-          {!previewUrl && !loadError ? <div className="plan-stage-message">학교 도면 불러오는 중</div> : null}
+          {!previewUrl && !loadError ? <div className="plan-stage-message">학교 사진 불러오는 중</div> : null}
           {loadError ? <div className="plan-stage-message">학교 이미지를 불러오지 못했습니다.</div> : null}
           {previewUrl && activeImage.mimeType === "application/pdf" ? <object data={previewUrl} type="application/pdf" title="학교 배치도 PDF" /> : null}
           {previewUrl && activeImage.mimeType !== "application/pdf" ? <Image src={previewUrl} alt="학생 설계용 학교 공간" fill sizes="(max-width: 1000px) 100vw, 65vw" unoptimized draggable={false} /> : null}
           <svg className="student-base-overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
-            <defs>
-              <pattern id="student-zone-stripes" width="18" height="18" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="18" fill="#b7d93d" fillOpacity="0.28" /></pattern>
-            </defs>
-            {facilities.map((feature) => {
-              const option = getFeatureOption(feature.kind);
-              return <polygon className="student-existing-shape" key={feature.id} points={pointsToSvg(feature.points)} fill={option?.color ?? "#596776"} stroke={option?.color ?? "#596776"} />;
-            })}
-            {zones.map((zone) => <polygon className="student-editable-shape" key={zone.id} points={pointsToSvg(zone.points)} fill="url(#student-zone-stripes)" stroke="#9fbd2d" />)}
+            {zones.map((zone) => <polygon className="student-editable-shape" key={zone.id} points={pointsToSvg(zone.points)} />)}
           </svg>
           {objects.map((object) => {
             const material = findLandscapeMaterial(object.materialId);
@@ -388,12 +367,11 @@ function LandscapeDesignWorkspace({
               </button>
             );
           })}
-          <div className="student-zone-label">조경 가능 영역 안에서 설계</div>
+          <div className="student-zone-label">여기에 놓기</div>
         </div>
         <footer className="student-plan-status">
           <p role="status">{notice}</p>
           <div>
-            <button className="student-save-button" type="button" onClick={() => persistDesign(objects)}>지금 저장</button>
             <button
               className="student-preview3d-button"
               type="button"
@@ -414,32 +392,26 @@ function LandscapeDesignWorkspace({
                 onContinue();
               }}
             >
-              설계 완료 <span>{objects.length > 0 ? "의도 작성" : "재료 배치 후"}</span>
+              완성 <span>{objects.length > 0 ? "다음" : "재료 배치 후"}</span>
             </button>
           </div>
         </footer>
       </section>
 
-      <aside className="object-inspector" aria-label="선택한 재료 속성">
-        <div className="design-panel-heading">
-          <p className="eyebrow">OBJECT PROPERTIES</p>
-          <h2>선택한 재료</h2>
-        </div>
-        {!selectedObject || !selectedMaterial ? (
-          <div className="inspector-empty"><span /><strong>도면의 재료를 선택하세요.</strong><p>이동하거나 크기와 방향을 조절할 수 있습니다.</p></div>
-        ) : (
+      {selectedObject && selectedMaterial ? (
+        <aside className="object-inspector" aria-label="선택한 재료 조작">
           <div className="inspector-controls">
-            <div className="selected-material-summary"><MaterialSymbol material={selectedMaterial} /><div><small>{LANDSCAPE_CATEGORY_LABELS[selectedMaterial.category]}</small><strong>{selectedMaterial.name}</strong><span>실제 기준 {selectedMaterial.realWidthMeters} × {selectedMaterial.realHeightMeters}m</span></div></div>
-            <label><span>크기 <strong>{Math.round(selectedObject.scale * 100)}%</strong></span><input type="range" min="0.5" max="2" step="0.1" value={selectedObject.scale} onChange={(event) => updateObject(selectedObject.id, { scale: Number(event.target.value) })} /></label>
-            <label><span>방향 <strong>{selectedObject.rotation}°</strong></span><input type="range" min="0" max="350" step="10" value={selectedObject.rotation} onChange={(event) => updateObject(selectedObject.id, { rotation: Number(event.target.value) })} /></label>
-            <div className="nudge-actions"><span>위치 미세 조정</span><div><button type="button" aria-label="위로 이동" onClick={() => nudgeSelected(0, -0.02)}>위</button><button type="button" aria-label="왼쪽으로 이동" onClick={() => nudgeSelected(-0.02, 0)}>왼쪽</button><button type="button" aria-label="아래로 이동" onClick={() => nudgeSelected(0, 0.02)}>아래</button><button type="button" aria-label="오른쪽으로 이동" onClick={() => nudgeSelected(0.02, 0)}>오른쪽</button></div></div>
-            <div className="layer-actions"><span>겹침 순서</span><div><button type="button" onClick={() => moveLayer("back")}>뒤로</button><button type="button" onClick={() => moveLayer("front")}>앞으로</button></div></div>
-            <div className="object-actions"><button type="button" onClick={duplicateSelected}>복제</button><button type="button" onClick={deleteSelected}>삭제</button></div>
-            <p className="move-tip">도면에서 선택한 재료를 직접 끌어 위치를 바꿀 수 있습니다.</p>
+            <div className="selected-material-summary"><MaterialSymbol material={selectedMaterial} /><div><small>{LANDSCAPE_CATEGORY_LABELS[selectedMaterial.category]}</small><strong>{selectedMaterial.name}</strong></div></div>
+            <div className="simple-object-actions">
+              <button type="button" onClick={() => resizeSelected(-0.1)}>작게</button>
+              <button type="button" onClick={() => resizeSelected(0.1)}>크게</button>
+              <button type="button" onClick={rotateSelected}>돌리기</button>
+              <button type="button" onClick={duplicateSelected}>복사</button>
+              <button type="button" onClick={deleteSelected}>지우기</button>
+            </div>
           </div>
-        )}
-        <div className="design-checklist"><strong>설계할 때 생각하기</strong><ul><li>사람이 편하게 이동할 수 있나요?</li><li>그늘과 쉴 곳이 있나요?</li><li>기존 시설을 막지 않았나요?</li></ul></div>
-      </aside>
+        </aside>
+      ) : null}
     </main>
   );
 }

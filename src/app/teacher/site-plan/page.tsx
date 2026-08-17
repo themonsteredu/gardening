@@ -1,5 +1,5 @@
-import { SitePlanEditor } from "@/components/teacher/SitePlanEditor";
+import { redirect } from "next/navigation";
 
 export default function TeacherSitePlanPage() {
-  return <SitePlanEditor />;
+  redirect("/teacher/editable-zone");
 }

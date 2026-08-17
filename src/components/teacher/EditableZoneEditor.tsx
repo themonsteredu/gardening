@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import type { Point2D, SchoolProject, SiteImage, SitePlan, SitePlanFeature } from "@/domain/models";
@@ -14,17 +15,8 @@ import {
   SITE_PLAN_STORAGE_KEY,
 } from "@/lib/project-store";
 import { getSiteImageFile } from "@/lib/site-image-store";
-import {
-  getEditableZoneFeatures,
-  getExistingSiteFeatures,
-  getFeatureOption,
-  isUsablePolygon,
-  normalizePointerPoint,
-  pointsToSvg,
-} from "@/lib/site-plan";
+import { getEditableZoneFeatures, isUsablePolygon, normalizePointerPoint } from "@/lib/site-plan";
 import { useBrowserStorageValue, writeBrowserStorage } from "@/lib/use-browser-storage";
-
-const ZONE_COLOR = "#b7d93d";
 
 export function EditableZoneEditor() {
   const projectValue = useBrowserStorageValue("local", PROJECT_STORAGE_KEY);
@@ -44,6 +36,34 @@ export function EditableZoneEditor() {
   );
 }
 
+function rectanglePoints(start: Point2D, end: Point2D): Point2D[] {
+  const left = Math.min(start.x, end.x);
+  const right = Math.max(start.x, end.x);
+  const top = Math.min(start.y, end.y);
+  const bottom = Math.max(start.y, end.y);
+  return [
+    { x: left, y: top },
+    { x: right, y: top },
+    { x: right, y: bottom },
+    { x: left, y: bottom },
+  ];
+}
+
+function zoneStyle(points: Point2D[]) {
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  const left = Math.min(...xs);
+  const top = Math.min(...ys);
+  const right = Math.max(...xs);
+  const bottom = Math.max(...ys);
+  return {
+    left: `${left * 100}%`,
+    top: `${top * 100}%`,
+    width: `${(right - left) * 100}%`,
+    height: `${(bottom - top) * 100}%`,
+  };
+}
+
 function EditableZoneWorkspace({
   project,
   siteImage,
@@ -53,25 +73,19 @@ function EditableZoneWorkspace({
   siteImage: SiteImage | null;
   sitePlan: SitePlan | null;
 }) {
+  const router = useRouter();
   const stageRef = useRef<HTMLDivElement>(null);
+  const planIdRef = useRef<string | null>(sitePlan?.id ?? null);
   const activeImage = siteImage?.id === project.siteImageId ? siteImage : null;
-  const facilities = sitePlan && sitePlan.siteImageId === activeImage?.id
-    ? getExistingSiteFeatures(sitePlan.features)
-    : [];
-  const [zones, setZones] = useState<SitePlanFeature[]>(() =>
-    sitePlan?.siteImageId === project.siteImageId
-      ? getEditableZoneFeatures(sitePlan.features)
-      : [],
-  );
+  const storedZone = sitePlan && sitePlan.siteImageId === activeImage?.id
+    ? getEditableZoneFeatures(sitePlan.features)[0] ?? null
+    : null;
+  const [zone, setZone] = useState<SitePlanFeature | null>(storedZone);
+  const [dragStart, setDragStart] = useState<Point2D | null>(null);
   const [draftPoints, setDraftPoints] = useState<Point2D[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [sourceVisible, setSourceVisible] = useState(true);
-  const [facilitiesVisible, setFacilitiesVisible] = useState(true);
-  const [zonesVisible, setZonesVisible] = useState(true);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const selectedZone = zones.find((zone) => zone.id === selectedId) ?? null;
+  const [notice, setNotice] = useState(storedZone ? "조경영역이 표시되어 있습니다." : "사진 위를 한 번 끌어 표시하세요.");
 
   useEffect(() => {
     if (!activeImage) return;
@@ -93,69 +107,86 @@ function EditableZoneWorkspace({
     };
   }, [activeImage]);
 
-  function addPoint(event: React.PointerEvent<HTMLDivElement>) {
-    if (!stageRef.current || !zonesVisible || !previewUrl) return;
-    if ((event.target as Element).closest("[data-editor-control]")) return;
-    const point = normalizePointerPoint(event.clientX, event.clientY, stageRef.current.getBoundingClientRect());
-    setDraftPoints((current) => [...current, point]);
-    setNotice(null);
+  function pointFromEvent(event: React.PointerEvent<HTMLDivElement>): Point2D | null {
+    if (!stageRef.current) return null;
+    return normalizePointerPoint(event.clientX, event.clientY, stageRef.current.getBoundingClientRect());
   }
 
-  function completeZone() {
-    if (!isUsablePolygon(draftPoints)) {
-      setNotice("서로 떨어진 점을 3개 이상 찍어 조경 가능 영역을 만들어 주세요.");
-      return;
-    }
-    const zone: SitePlanFeature = {
-      id: `editable-zone-${crypto.randomUUID()}`,
-      kind: "editable_zone",
-      label: `조경 가능 영역 ${zones.length + 1}`,
-      points: draftPoints,
-      layer: "existing",
-    };
-    setZones((current) => [...current, zone]);
-    setSelectedId(zone.id);
-    setDraftPoints([]);
-    setNotice(`${zone.label}을 만들었습니다.`);
-  }
-
-  function updateSelectedLabel(label: string) {
-    if (!selectedId) return;
-    setZones((current) => current.map((zone) => zone.id === selectedId ? { ...zone, label } : zone));
-  }
-
-  function deleteZone(id: string) {
-    setZones((current) => current.filter((zone) => zone.id !== id));
-    setSelectedId((current) => current === id ? null : current);
-    setNotice("조경 가능 영역을 삭제했습니다.");
-  }
-
-  function saveZones() {
-    if (!activeImage || !sitePlan || zones.length === 0) {
-      setNotice("조경 가능 영역을 하나 이상 만든 뒤 저장해 주세요.");
-      return;
-    }
+  function persistZone(nextZone: SitePlanFeature): string | null {
+    if (!activeImage) return null;
+    const planId = sitePlan?.id ?? planIdRef.current ?? `site-area-${crypto.randomUUID()}`;
+    planIdRef.current = planId;
     const plan: SitePlan = {
-      ...sitePlan,
+      id: planId,
       siteImageId: activeImage.id,
-      features: [...facilities, ...zones],
+      features: [nextZone],
+      scaleReference: null,
     };
     writeBrowserStorage("local", SITE_PLAN_STORAGE_KEY, JSON.stringify(plan));
     writeBrowserStorage("local", PROJECT_STORAGE_KEY, JSON.stringify({ ...project, sitePlanId: plan.id }));
-    setNotice(`조경 가능 영역 ${zones.length}개를 저장했습니다. 학생 설계 범위로 사용할 준비가 되었습니다.`);
+    return planId;
   }
 
-  if (!activeImage || !sitePlan || facilities.length === 0) {
+  function beginArea(event: React.PointerEvent<HTMLDivElement>) {
+    if (!previewUrl) return;
+    const point = pointFromEvent(event);
+    if (!point) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDragStart(point);
+    setDraftPoints(rectanglePoints(point, point));
+    setNotice("손을 떼면 바로 표시됩니다.");
+  }
+
+  function resizeArea(event: React.PointerEvent<HTMLDivElement>) {
+    if (!dragStart) return;
+    const point = pointFromEvent(event);
+    if (point) setDraftPoints(rectanglePoints(dragStart, point));
+  }
+
+  function finishArea(event: React.PointerEvent<HTMLDivElement>) {
+    if (!dragStart) return;
+    const point = pointFromEvent(event);
+    const points = point ? rectanglePoints(dragStart, point) : draftPoints;
+    setDragStart(null);
+    setDraftPoints([]);
+    if (!isUsablePolygon(points)) {
+      setNotice("조금 더 넓게 끌어 표시해 주세요.");
+      return;
+    }
+    const nextZone: SitePlanFeature = {
+      id: zone?.id ?? `editable-zone-${crypto.randomUUID()}`,
+      kind: "editable_zone",
+      label: "조경 가능 영역",
+      points,
+      layer: "existing",
+    };
+    setZone(nextZone);
+    persistZone(nextZone);
+    setNotice("조경영역이 표시되었습니다.");
+  }
+
+  function resetArea() {
+    setZone(null);
+    setDraftPoints([]);
+    setDragStart(null);
+    setNotice("사진 위를 한 번 끌어 표시하세요.");
+  }
+
+  function startClass() {
+    if (!zone) return;
+    const planId = persistZone(zone);
+    writeBrowserStorage("local", PROJECT_STORAGE_KEY, JSON.stringify({ ...project, sitePlanId: planId, status: "open" }));
+    router.push("/teacher");
+  }
+
+  if (!activeImage) {
     return (
       <div className="site-plan-page">
         <AppHeader compact current="teacher" />
         <main className="site-plan-empty">
-          <p className="eyebrow">STEP 04 · EDITABLE ZONE</p>
-          <h1>먼저 기존 시설 도면을 완성해 주세요.</h1>
-          <p>조경 가능 영역은 등록된 학교 이미지와 기존 시설 도면 위에 지정합니다.</p>
-          <Link className="button button--primary" href={activeImage ? "/teacher/site-plan" : "/teacher/site-image"}>
-            {activeImage ? "학교 도면 만들기" : "학교 이미지 등록"}
-          </Link>
+          <h1>학교 사진을 먼저 넣어주세요.</h1>
+          <p>항공사진이나 학교 배치 이미지를 그대로 사용합니다.</p>
+          <Link className="button button--primary" href="/teacher/site-image">학교 사진 넣기</Link>
         </main>
       </div>
     );
@@ -164,105 +195,45 @@ function EditableZoneWorkspace({
   const aspectRatio = activeImage.width > 0 && activeImage.height > 0
     ? `${activeImage.width} / ${activeImage.height}`
     : "4 / 3";
+  const visiblePoints = draftPoints.length > 0 ? draftPoints : zone?.points ?? [];
 
   return (
-    <div className="site-plan-page editable-zone-page">
+    <div className="simple-zone-page">
       <AppHeader compact current="teacher" />
-      <main className="site-plan-main">
-        <header className="site-plan-heading">
+      <main className="simple-zone-main">
+        <header className="simple-zone-heading">
           <div>
-            <Link className="text-back" href="/teacher/site-plan">← 기존 시설 도면</Link>
-            <p className="eyebrow">STEP 04 · EDITABLE ZONE</p>
-            <h1>조경 가능 영역 지정</h1>
-            <p>학생이 재료를 배치할 수 있는 공간만 경계를 따라 표시합니다.</p>
+            <Link className="text-back" href="/teacher">← 수업 준비</Link>
+            <h1>조경할 곳 표시</h1>
+            <p>사진 위를 한 번 끌어주세요.</p>
           </div>
-          <div className="plan-save-actions">
-            <span>{zones.length}개 영역</span>
-            <button className="button button--primary" type="button" onClick={saveZones}>영역 저장</button>
-          </div>
+          <span className={zone ? "is-ready" : ""}>{zone ? "표시됨" : "표시 전"}</span>
         </header>
 
-        <div className="site-plan-workspace editable-zone-workspace">
-          <aside className="zone-guide-panel">
-            <div className="palette-heading"><span>01</span><div><strong>지정 기준</strong><small>학생이 바꿀 수 있는 곳</small></div></div>
-            <div className="zone-symbol"><i /><div><strong>조경 가능 영역</strong><small>연두색 사선으로 표시</small></div></div>
-            <ul>
-              <li>건물과 기존 시설은 제외합니다.</li>
-              <li>학생이 안전하게 이용할 수 있는 공간을 선택합니다.</li>
-              <li>여러 공간을 각각 나누어 지정할 수 있습니다.</li>
-            </ul>
-            <div className="zone-warning"><strong>학생 편집 제한</strong><p>다음 단계에서 재료는 이 경계 안에만 배치할 수 있게 됩니다.</p></div>
-          </aside>
-
-          <section className="plan-canvas-panel">
-            <div className="canvas-toolbar">
-              <div><strong>GUIDE · 조경 가능 영역</strong><span>{draftPoints.length > 0 ? `점 ${draftPoints.length}개 표시 중` : "경계를 따라 점을 찍어주세요"}</span></div>
-              <div data-editor-control>
-                <button type="button" disabled={draftPoints.length === 0} onClick={() => setDraftPoints((points) => points.slice(0, -1))}>점 되돌리기</button>
-                <button type="button" disabled={draftPoints.length === 0} onClick={() => setDraftPoints([])}>취소</button>
-                <button className="toolbar-complete" type="button" disabled={draftPoints.length < 3} onClick={completeZone}>영역 완성</button>
-              </div>
-            </div>
-
-            <div
-              ref={stageRef}
-              className={`plan-drawing-stage zone-drawing-stage ${draftPoints.length ? "is-drawing" : ""}`}
-              style={{ aspectRatio }}
-              onPointerDown={addPoint}
-              aria-label="조경 가능 영역 편집 화면"
-            >
-              {!previewUrl && !loadError ? <div className="plan-stage-message">원본 이미지 불러오는 중</div> : null}
-              {loadError ? <div className="plan-stage-message">원본 파일을 불러오지 못했습니다.</div> : null}
-              {previewUrl && activeImage.mimeType === "application/pdf" ? <object className={sourceVisible ? "" : "is-hidden"} data={previewUrl} type="application/pdf" title="학교 배치도 PDF" /> : null}
-              {previewUrl && activeImage.mimeType !== "application/pdf" ? <Image className={sourceVisible ? "" : "is-hidden"} src={previewUrl} alt="조경 가능 영역의 원본 학교 공간" fill sizes="(max-width: 1100px) 100vw, 70vw" unoptimized draggable={false} /> : null}
-              <svg className="plan-overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
-                <defs>
-                  <pattern id="editable-zone-stripes" width="18" height="18" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                    <rect width="7" height="18" fill={ZONE_COLOR} fillOpacity="0.48" />
-                  </pattern>
-                </defs>
-                {facilitiesVisible ? facilities.map((feature) => {
-                  const option = getFeatureOption(feature.kind);
-                  return <polygon className="reference-facility" key={feature.id} points={pointsToSvg(feature.points)} fill={option?.color ?? "#596776"} stroke={option?.color ?? "#596776"} />;
-                }) : null}
-                {zonesVisible ? zones.map((zone) => (
-                  <polygon className={`editable-zone-shape ${selectedId === zone.id ? "is-selected" : ""}`} key={zone.id} points={pointsToSvg(zone.points)} fill="url(#editable-zone-stripes)" stroke={ZONE_COLOR} />
-                )) : null}
-                {draftPoints.length > 0 ? (
-                  <g className="draft-shape zone-draft">
-                    <polyline points={pointsToSvg(draftPoints)} />
-                    {draftPoints.map((point) => <circle key={`${point.x}-${point.y}`} cx={point.x * 1000} cy={point.y * 1000} r="9" />)}
-                  </g>
-                ) : null}
-              </svg>
-              <div className="canvas-badges" data-editor-control><span>원본 {sourceVisible ? "ON" : "OFF"}</span><span>시설 {facilitiesVisible ? "ON" : "OFF"}</span><span>가능 영역 {zonesVisible ? "ON" : "OFF"}</span></div>
-            </div>
-            {notice ? <p className="plan-editor-notice" role="status">{notice}</p> : null}
-          </section>
-
-          <aside className="plan-inspector">
-            <section className="layer-panel">
-              <div className="palette-heading"><span>02</span><div><strong>표시 항목</strong><small>작업 화면 정리</small></div></div>
-              <label><span><i className="layer-swatch layer-swatch--image" />원본 이미지</span><input type="checkbox" checked={sourceVisible} onChange={(event) => setSourceVisible(event.target.checked)} /></label>
-              <label><span><i className="layer-swatch layer-swatch--plan" />기존 시설</span><input type="checkbox" checked={facilitiesVisible} onChange={(event) => setFacilitiesVisible(event.target.checked)} /></label>
-              <label><span><i className="layer-swatch layer-swatch--zone" />가능 영역</span><input type="checkbox" checked={zonesVisible} onChange={(event) => setZonesVisible(event.target.checked)} /></label>
-            </section>
-            <section className="feature-list-panel">
-              <div className="palette-heading"><span>03</span><div><strong>지정된 영역</strong><small>{zones.length}개</small></div></div>
-              {zones.length === 0 ? <p className="feature-list-empty">첫 번째 조경 가능 영역의 경계를 표시해 주세요.</p> : (
-                <div className="feature-list zone-list">
-                  {zones.map((zone) => <button key={zone.id} type="button" className={selectedId === zone.id ? "is-active" : ""} onClick={() => setSelectedId(zone.id)}><i /><span><strong>{zone.label}</strong><small>경계점 {zone.points.length}개</small></span></button>)}
-                </div>
-              )}
-            </section>
-            {selectedZone ? (
-              <section className="selected-feature-editor">
-                <label><span>영역 이름</span><input value={selectedZone.label} maxLength={30} onChange={(event) => updateSelectedLabel(event.target.value)} /></label>
-                <button type="button" onClick={() => deleteZone(selectedZone.id)}>이 영역 삭제</button>
-              </section>
-            ) : null}
-          </aside>
-        </div>
+        <section className="simple-zone-workspace">
+          <div
+            ref={stageRef}
+            className={`simple-zone-stage ${dragStart ? "is-drawing" : ""}`}
+            style={{ aspectRatio }}
+            onPointerDown={beginArea}
+            onPointerMove={resizeArea}
+            onPointerUp={finishArea}
+            onPointerCancel={() => { setDragStart(null); setDraftPoints([]); }}
+            aria-label="학교 사진에서 조경할 공간 표시"
+          >
+            {!previewUrl && !loadError ? <div className="plan-stage-message">학교 사진 불러오는 중</div> : null}
+            {loadError ? <div className="plan-stage-message">학교 사진을 다시 넣어주세요.</div> : null}
+            {previewUrl && activeImage.mimeType === "application/pdf" ? <object data={previewUrl} type="application/pdf" title="학교 사진" /> : null}
+            {previewUrl && activeImage.mimeType !== "application/pdf" ? <Image src={previewUrl} alt={`${project.schoolName} 학교 공간`} fill sizes="(max-width: 900px) 100vw, 80vw" unoptimized draggable={false} /> : null}
+            {visiblePoints.length > 0 ? <div className="simple-zone-boundary" style={zoneStyle(visiblePoints)}><span>조경할 공간</span></div> : null}
+          </div>
+          <p className="simple-zone-notice" role="status">{notice}</p>
+          <div className="simple-zone-actions">
+            <Link className="button button--quiet" href="/teacher/site-image">사진 바꾸기</Link>
+            <button className="button button--quiet" type="button" onClick={resetArea}>조경영역 표시</button>
+            <button className="button button--primary" type="button" disabled={!zone} onClick={startClass}>수업 시작</button>
+          </div>
+        </section>
       </main>
     </div>
   );

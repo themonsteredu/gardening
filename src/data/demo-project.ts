@@ -48,8 +48,8 @@ export const PROJECT_FLOW = [
   {
     part: "PART 1",
     title: "우리 학교 실제 공간 조경설계",
-    description: "실제 학교 이미지를 도면으로 바꾸고 재료를 배치합니다.",
-    steps: ["학교 공간 확인", "도면 위 설계", "설계 의도 기록", "친구 작품 비교"],
+    description: "실제 학교 사진 위에 조경 재료를 바로 배치합니다.",
+    steps: ["학교 사진 꾸미기", "설계 의도 기록", "친구 작품 비교"],
   },
   {
     part: "PART 2",

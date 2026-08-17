@@ -18,7 +18,7 @@ export default function HomePage() {
               <em>직접 설계해 볼까요?</em>
             </h1>
             <p className="hero-description">
-              실제 학교 공간을 도면으로 읽고, 조경 재료를 배치하고,
+              실제 학교 사진 위에 조경 재료를 배치하고,
               미니조경 작품까지 만드는 하나의 설계 프로젝트입니다.
             </p>
             <div className="hero-actions">
@@ -37,7 +37,7 @@ export default function HomePage() {
               </div>
               <div>
                 <dt>02</dt>
-                <dd>도면 중심 설계</dd>
+                <dd>학교 사진 위 재료 배치</dd>
               </div>
               <div>
                 <dt>03</dt>

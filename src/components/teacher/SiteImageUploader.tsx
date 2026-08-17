@@ -142,11 +142,10 @@ export function SiteImageUploader() {
         <header className="site-upload-heading">
           <div>
             <Link className="text-back" href="/teacher">← 수업 설계실</Link>
-            <p className="eyebrow">STEP 02 · SOURCE IMAGE</p>
-            <h1>학교 이미지 등록</h1>
-            <p>학생이 설계할 실제 학교 공간을 조경 도면의 원본 레이어로 등록합니다.</p>
+            <p className="eyebrow">학교 사진</p>
+            <h1>학교 사진 넣기</h1>
+            <p>항공사진이나 학교 배치 이미지를 그대로 사용합니다.</p>
           </div>
-          <div className="step-counter"><span>2</span><small>15단계 중</small></div>
         </header>
 
         <div className="site-upload-layout">
@@ -166,12 +165,6 @@ export function SiteImageUploader() {
                 <li>파일당 최대 20MB</li>
               </ul>
             </section>
-            <section className="layer-structure">
-              <span className="guide-index">LAYER STRUCTURE</span>
-              <div><span>1</span><p><strong>원본 이미지</strong><small>이번 단계에서 등록</small></p></div>
-              <div><span>2</span><p><strong>기존 시설 도면</strong><small>다음 단계에서 작성</small></p></div>
-              <div><span>3</span><p><strong>학생 조경 설계</strong><small>학생이 직접 편집</small></p></div>
-            </section>
             <div className="privacy-note">
               <strong>등록 전 확인</strong>
               <p>학생 얼굴, 차량 번호 등 개인을 식별할 수 있는 정보가 선명하게 보이지 않는 자료를 사용하세요.</p>
@@ -181,7 +174,7 @@ export function SiteImageUploader() {
           <section className="upload-workspace" aria-labelledby="upload-workspace-title">
             <div className="upload-workspace__heading">
               <div><span>PROJECT</span><strong>{project.schoolName} · {project.className}</strong></div>
-              <p id="upload-workspace-title">Layer 1 원본 이미지</p>
+              <p id="upload-workspace-title">학생 화면에 보일 학교 사진</p>
             </div>
 
             {!candidate && !activeSavedImage ? (
@@ -216,7 +209,7 @@ export function SiteImageUploader() {
                   ) : (
                     <Image src={candidate.previewUrl} alt="선택한 학교 공간 이미지 미리보기" fill sizes="(max-width: 900px) 100vw, 70vw" unoptimized />
                   )}
-                  <span className="source-layer-badge">LAYER 1 · 원본 이미지</span>
+                  <span className="source-layer-badge">학교 사진</span>
                 </div>
                 <div className="candidate-preview__info">
                   <div><span>{candidate.mimeType === "application/pdf" ? "PDF" : "IMAGE"}</span><strong>{candidate.file.name}</strong></div>
@@ -244,7 +237,7 @@ export function SiteImageUploader() {
 
             {error ? <p className="form-error upload-error" role="alert">{error}</p> : null}
             {saveState === "saved" ? (
-              <div className="upload-success" role="status"><span>✓</span><div><strong>학교 이미지가 등록되었습니다.</strong><p>이제 이미지 위에 기존 시설과 조경 가능 영역을 표시할 준비가 되었습니다.</p></div></div>
+              <div className="upload-success" role="status"><span>✓</span><div><strong>학교 사진이 등록되었습니다.</strong><p>이제 조경할 공간만 표시하면 됩니다.</p></div></div>
             ) : null}
 
             <div className="upload-actions">
@@ -260,7 +253,7 @@ export function SiteImageUploader() {
                     {saveState === "saving" ? "저장하는 중" : "이 이미지 등록"}
                   </button>
                 ) : (
-                  <Link className="button button--primary" href="/teacher/site-plan">다음: 도면 만들기</Link>
+                  <Link className="button button--primary" href="/teacher/editable-zone">조경영역 표시</Link>
                 )}
               </div>
             </div>

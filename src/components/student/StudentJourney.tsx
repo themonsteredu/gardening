@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { SchoolPhotoStart } from "@/components/student/SchoolPhotoStart";
 import { LandscapeDesignStudio } from "@/components/student/LandscapeDesignStudio";
 import { Landscape3DPreview } from "@/components/student/Landscape3DPreview";
 import { LandscapeIntentionForm } from "@/components/student/LandscapeIntentionForm";
@@ -34,7 +33,7 @@ export function StudentJourney({ sessionId }: { sessionId: string }) {
     },
     project: DEMO_PROJECT,
   }), [sessionId]);
-  const [view, setView] = useState<"school" | "design" | "preview3d" | "intention" | "gallery" | "miniPot" | "sandLayers" | "objectPlacement" | "makingPlan" | "finalComparison">("school");
+  const [view, setView] = useState<"design" | "preview3d" | "intention" | "gallery" | "miniPot" | "sandLayers" | "objectPlacement" | "makingPlan" | "finalComparison">("design");
   const studentStorageKey = getStudentSessionStorageKey(sessionId);
   const sessionContext = useBrowserStorageValue(
     "session",
@@ -87,14 +86,11 @@ export function StudentJourney({ sessionId }: { sessionId: string }) {
         </div>
       </div>
 
-      {view === "school" ? (
-        <SchoolPhotoStart project={context.project} nickname={context.session.nickname} onStart={() => setView("design")} />
-      ) : view === "design" ? (
+      {view === "design" ? (
         <LandscapeDesignStudio
           project={context.project}
           nickname={context.session.nickname}
           sessionId={context.session.id}
-          onBack={() => setView("school")}
           onPreview3D={() => setView("preview3d")}
           onContinue={() => setView("intention")}
         />

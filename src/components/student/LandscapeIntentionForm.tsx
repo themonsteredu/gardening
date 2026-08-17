@@ -44,7 +44,7 @@ export function LandscapeIntentionForm({
         <p className="eyebrow">STEP 08 · DESIGN STATEMENT</p>
         <h1>먼저 조경 재료를 배치해 주세요.</h1>
         <p>설계 의도는 완성한 배치도와 함께 우리 반 갤러리에 제출됩니다.</p>
-        <button className="button button--primary" type="button" onClick={onBack}>도면 설계로 돌아가기</button>
+        <button className="button button--primary" type="button" onClick={onBack}>다시 꾸미기</button>
       </main>
     );
   }

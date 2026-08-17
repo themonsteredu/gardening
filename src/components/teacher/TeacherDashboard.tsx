@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { PlanPreview } from "@/components/PlanPreview";
 import { StoredSiteImagePreview } from "@/components/teacher/StoredSiteImagePreview";
 import { DEMO_PROJECT, DEMO_STUDENTS } from "@/data/demo-project";
 import {
@@ -35,37 +34,6 @@ interface ProjectFormState {
   mission: string;
 }
 
-const SETUP_ITEMS = [
-  {
-    key: "basic",
-    index: "01",
-    title: "수업 기본 정보",
-    detail: "학교명, 반, 수업명과 설계 미션",
-    step: "STEP 1",
-  },
-  {
-    key: "image",
-    index: "02",
-    title: "학교 이미지 등록",
-    detail: "항공사진, 배치도 또는 PDF",
-    step: "STEP 2",
-  },
-  {
-    key: "plan",
-    index: "03",
-    title: "기존 시설과 설계 영역",
-    detail: "도면 레이어와 조경 가능 영역 지정",
-    step: "STEP 3–4",
-  },
-  {
-    key: "kit",
-    index: "04",
-    title: "오늘의 미니조경 키트",
-    detail: "화분 크기와 실제 재료 구성",
-    step: "STEP 9",
-  },
-] as const;
-
 export function TeacherDashboard() {
   const [tab, setTab] = useState<TeacherTab>("setup");
   const [editorOpen, setEditorOpen] = useState(false);
@@ -87,12 +55,11 @@ export function TeacherDashboard() {
 
   const setupProgress = useMemo(() => {
     const done = [
-      Boolean(project.schoolName && project.className && project.title),
       Boolean(project.siteImageId),
       Boolean(sitePlan?.features.some((feature) => feature.kind === "editable_zone")),
       Boolean(project.miniGardenKitId && miniGardenKits.some((kit) => kit.id === project.miniGardenKitId)),
     ].filter(Boolean).length;
-    return Math.round((done / SETUP_ITEMS.length) * 100);
+    return Math.round((done / 3) * 100);
   }, [miniGardenKits, project, sitePlan]);
 
   function saveProject() {
@@ -120,6 +87,10 @@ export function TeacherDashboard() {
     await navigator.clipboard.writeText(project.classCode);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1600);
+  }
+
+  function startClass() {
+    writeBrowserStorage("local", PROJECT_STORAGE_KEY, JSON.stringify({ ...project, status: "open" }));
   }
 
   return (
@@ -202,7 +173,7 @@ export function TeacherDashboard() {
         </div>
 
         {tab === "setup" ? (
-          <SetupPanel project={project} siteImage={siteImage} sitePlan={sitePlan} miniGardenKits={miniGardenKits} onEdit={openEditor} />
+          <SetupPanel project={project} siteImage={siteImage} sitePlan={sitePlan} miniGardenKits={miniGardenKits} onStart={startClass} />
         ) : null}
         {tab === "students" ? <StudentsPanel /> : null}
         {tab === "gallery" ? <GalleryPanel /> : null}
@@ -259,7 +230,7 @@ export function TeacherDashboard() {
             </div>
 
             <div className="drawer-note">
-              학교 이미지는 수업 준비 목록의 STEP 2에서 등록할 수 있습니다. 도면 영역과 미니조경 키트는 이후 단계에서 연결됩니다.
+              학교 사진을 넣고 조경할 공간만 표시하면 학생이 바로 재료를 배치할 수 있습니다.
             </div>
             <div className="drawer-actions">
               <button className="button button--quiet" type="button" onClick={() => setEditorOpen(false)}>
@@ -286,92 +257,40 @@ function SetupPanel({
   siteImage,
   sitePlan,
   miniGardenKits,
-  onEdit,
+  onStart,
 }: {
   project: SchoolProject;
   siteImage: ReturnType<typeof parseStoredSiteImage>;
   sitePlan: ReturnType<typeof parseStoredSitePlan>;
   miniGardenKits: ReturnType<typeof parseStoredMiniGardenKits>;
-  onEdit: () => void;
+  onStart: () => void;
 }) {
-  const completed = [
-    Boolean(project.schoolName && project.className && project.title),
-    Boolean(project.siteImageId && siteImage?.id === project.siteImageId),
-    Boolean(sitePlan?.features.some((feature) => feature.kind === "editable_zone")),
-    Boolean(project.miniGardenKitId && miniGardenKits.some((kit) => kit.id === project.miniGardenKitId)),
-  ];
-  const completedCount = completed.filter(Boolean).length;
+  const hasPhoto = Boolean(project.siteImageId && siteImage?.id === project.siteImageId);
+  const hasZone = Boolean(sitePlan?.features.some((feature) => feature.kind === "editable_zone"));
+  const hasKit = Boolean(project.miniGardenKitId && miniGardenKits.some((kit) => kit.id === project.miniGardenKitId));
 
   return (
     <section className="dashboard-content dashboard-content--setup">
-      <div className="setup-list-panel">
-        <div className="panel-heading">
-          <div>
-            <h2>수업 준비 순서</h2>
-            <p>학생이 입장하기 전에 실제 공간과 실제 재료를 연결합니다.</p>
-          </div>
-          <span>{completedCount} / 4 완료</span>
-        </div>
-
-        <ol className="setup-list">
-          {SETUP_ITEMS.map((item, index) => {
-            const done = completed[index];
-            const available = index <= 1 || (index === 2 && Boolean(siteImage)) || index === 3;
-            const existingFeatureCount = sitePlan?.features.filter((feature) => feature.kind !== "editable_zone").length ?? 0;
-            const editableZoneCount = sitePlan?.features.filter((feature) => feature.kind === "editable_zone").length ?? 0;
-            return (
-              <li className={done ? "is-complete" : available ? "is-available" : "is-pending"} key={item.key}>
-                <span className="setup-index">{done ? "✓" : item.index}</span>
-                <div>
-                  <span className="step-label">{item.step}</span>
-                  <h3>{item.title}</h3>
-                  <p>{item.detail}</p>
-                </div>
-                {index === 0 ? (
-                  <button type="button" onClick={onEdit}>편집</button>
-                ) : null}
-                {index === 1 ? (
-                  <Link href="/teacher/site-image">{done ? "이미지 관리" : "시작"}</Link>
-                ) : null}
-                {index === 2 && available ? (
-                  <Link href={existingFeatureCount > 0 ? "/teacher/editable-zone" : "/teacher/site-plan"}>
-                    {editableZoneCount > 0
-                      ? `가능 영역 ${editableZoneCount}개 · 관리`
-                      : existingFeatureCount > 0
-                        ? "가능 영역 지정"
-                        : "도면 시작"}
-                  </Link>
-                ) : null}
-                {index === 2 && !available ? <button type="button" disabled>이미지 등록 후</button> : null}
-                {index === 3 ? <Link href="/teacher/mini-garden-kit">{done ? "키트 관리" : "시작"}</Link> : null}
-              </li>
-            );
-          })}
-        </ol>
-      </div>
-
-      <aside className="setup-preview-panel">
-        <div className="panel-heading">
-          <div>
-            <span className="step-label">PROJECT PREVIEW</span>
-            <h2>학생에게 보일 공간</h2>
-          </div>
-        </div>
+      <div className="teacher-simple-setup">
+        <header>
+          <div><h2>학교 공간 준비</h2><p>사진 위에 조경할 곳만 표시하세요.</p></div>
+          <span className={hasPhoto && hasZone ? "is-ready" : ""}>{hasPhoto && hasZone ? "준비됨" : "준비 중"}</span>
+        </header>
+        <div className="teacher-simple-photo">
         {siteImage && project.siteImageId === siteImage.id ? (
           <StoredSiteImagePreview siteImage={siteImage} compact showDetails={false} />
         ) : (
-          <PlanPreview variant="teacher" showMaterials={false} />
+          <div className="teacher-simple-photo__empty"><strong>학교 사진</strong><span>항공사진이나 배치 이미지를 넣어주세요.</span></div>
         )}
-        <div className="mission-box">
-          <small>이번 설계 미션</small>
-          <p>{project.mission}</p>
         </div>
-        <p className="preview-help">
-          {siteImage && project.siteImageId === siteImage.id
-            ? `${siteImage.name}이 원본 이미지 레이어로 연결되었습니다.`
-            : "학교 이미지가 등록되면 이 자리에 실제 도면 미리보기가 표시됩니다."}
-        </p>
-      </aside>
+        <div className="teacher-simple-actions">
+          <Link className="button button--quiet" href="/teacher/site-image">{hasPhoto ? "사진 바꾸기" : "사진 넣기"}</Link>
+          {hasPhoto ? <Link className="button button--quiet" href="/teacher/editable-zone">조경영역 표시</Link> : <button className="button button--quiet" type="button" disabled>조경영역 표시</button>}
+          <Link className="button button--quiet" href="/teacher/mini-garden-kit">{hasKit ? "재료 바꾸기" : "오늘 재료"}</Link>
+          <button className="button button--primary" type="button" disabled={!hasPhoto || !hasZone} onClick={onStart}>수업 시작</button>
+        </div>
+        <p className="teacher-simple-mission"><strong>오늘의 의뢰</strong><span>{project.mission}</span></p>
+      </div>
     </section>
   );
 }
