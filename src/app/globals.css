@@ -9907,3 +9907,307 @@ textarea:focus-visible {
     left: 17px;
   }
 }
+
+/* Simplified student journey · stage 1 */
+.studio-header--simple {
+  min-height: 60px;
+  color: var(--forest-950);
+  border-bottom: 1px solid #d9ded8;
+  background: #fff;
+}
+
+.studio-header--simple .brand--light .brand-mark,
+.studio-header--simple .brand--light .brand-mark > span {
+  border-color: var(--forest-700);
+}
+
+.studio-header--simple .brand--light small,
+.studio-header--simple .studio-project-name small,
+.studio-header--simple .student-identity small {
+  color: #728078;
+}
+
+.studio-header--simple .student-identity > span {
+  color: #fff;
+  background: var(--forest-700);
+}
+
+.studio-progress--simple {
+  min-height: 52px;
+  grid-template-columns: minmax(0, 620px);
+  justify-content: center;
+}
+
+.studio-progress--simple .progress-steps {
+  width: 100%;
+  padding: 0 1rem;
+}
+
+.studio-progress--simple .progress-steps > div:not(:last-child)::after {
+  right: 0.45rem;
+  left: 1.75rem;
+}
+
+.studio-progress--simple .progress-steps .is-done span {
+  color: #fff;
+  border-color: #79927f;
+  background: #79927f;
+}
+
+.studio-progress--simple .progress-steps .is-done small {
+  color: #5f7065;
+}
+
+.school-photo-start {
+  width: min(1600px, calc(100% - 3rem));
+  min-height: calc(100vh - 112px);
+  margin: 0 auto;
+  padding: 1.25rem 0 1.8rem;
+}
+
+.school-photo-start__heading {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 58px;
+  padding: 0.2rem 0;
+}
+
+.school-photo-start__heading > div:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+}
+
+.school-photo-start__heading > div:first-child > span {
+  color: #6d7a71;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.school-photo-start__heading h1 {
+  margin: 0;
+  color: #1f3528;
+  font-family: var(--font-serif), sans-serif;
+  font-size: clamp(1.2rem, 2.2vw, 1.8rem);
+  letter-spacing: -0.04em;
+}
+
+.school-photo-start__heading > button {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #c9d1ca;
+  border-radius: 50%;
+  color: #395241;
+  background: #fff;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.school-photo-help {
+  position: absolute;
+  z-index: 10;
+  top: 54px;
+  right: 0;
+  width: min(280px, calc(100vw - 3rem));
+  padding: 0.8rem 0.9rem;
+  border: 1px solid #cbd3cc;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(28, 48, 36, 0.14);
+}
+
+.school-photo-help strong {
+  font-size: 0.76rem;
+}
+
+.school-photo-help p {
+  margin: 0.28rem 0 0;
+  color: #607067;
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.school-photo-start__stage {
+  position: relative;
+  height: clamp(480px, calc(100vh - 205px), 850px);
+  min-height: 480px;
+  aspect-ratio: auto !important;
+  overflow: hidden;
+  border: 1px solid #bcc7be;
+  border-radius: 12px;
+  background: #dfe4df;
+  box-shadow: 0 18px 45px rgba(35, 54, 42, 0.11);
+}
+
+.school-photo-start__stage > img,
+.school-photo-start__stage > object {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #dfe4df;
+}
+
+.school-photo-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.35rem;
+  padding: 2rem;
+  color: #536158;
+  text-align: center;
+}
+
+.school-photo-empty strong {
+  font-family: var(--font-serif), sans-serif;
+  font-size: 1.2rem;
+}
+
+.school-photo-empty span {
+  color: #7a867e;
+  font-size: 0.75rem;
+}
+
+.school-photo-start__mission {
+  position: absolute;
+  right: 9rem;
+  bottom: 1rem;
+  left: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: fit-content;
+  max-width: min(680px, calc(100% - 10rem));
+  padding: 0.72rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 7px;
+  color: #fff;
+  background: rgba(27, 45, 34, 0.88);
+  backdrop-filter: blur(8px);
+}
+
+.school-photo-start__mission small {
+  flex: 0 0 auto;
+  color: #d8e7bc;
+  font-size: 0.62rem;
+  font-weight: 900;
+}
+
+.school-photo-start__mission strong {
+  overflow: hidden;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.school-photo-start__button {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  min-width: 112px;
+  min-height: 50px;
+  border: 0;
+  border-radius: 7px;
+  color: #fff;
+  background: var(--forest-700);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 900;
+  box-shadow: 0 7px 18px rgba(22, 44, 30, 0.24);
+}
+
+.school-photo-start__button:disabled {
+  color: #8a948d;
+  background: #e8ece8;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+@media (max-width: 800px) {
+  .studio-header--simple {
+    grid-template-columns: 1fr auto;
+    padding: 0 1rem;
+  }
+
+  .studio-header--simple .studio-project-name {
+    display: none;
+  }
+
+  .studio-progress--simple {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .studio-progress--simple .progress-steps {
+    min-height: 56px;
+    padding: 0 0.7rem;
+  }
+
+  .studio-progress--simple .progress-steps small {
+    display: block;
+  }
+
+  .school-photo-start {
+    width: calc(100% - 1rem);
+    padding-top: 0.7rem;
+  }
+
+  .school-photo-start__stage {
+    height: calc(100dvh - 190px);
+    min-height: 500px;
+  }
+}
+
+@media (max-width: 520px) {
+  .studio-progress--simple .progress-steps > div {
+    gap: 0.25rem;
+  }
+
+  .studio-progress--simple .progress-steps span {
+    width: 22px;
+    height: 22px;
+  }
+
+  .studio-progress--simple .progress-steps small {
+    padding-right: 0.15rem;
+    font-size: 0.49rem;
+  }
+
+  .studio-progress--simple .progress-steps > div:not(:last-child)::after {
+    left: 1.45rem;
+  }
+
+  .school-photo-start__heading > div:first-child {
+    display: grid;
+    gap: 0.15rem;
+  }
+
+  .school-photo-start__heading h1 {
+    font-size: 1.15rem;
+  }
+
+  .school-photo-start__mission {
+    right: 1rem;
+    bottom: 4.8rem;
+    max-width: calc(100% - 2rem);
+  }
+
+  .school-photo-start__mission strong {
+    white-space: normal;
+  }
+
+  .school-photo-start__button {
+    right: 1rem;
+    bottom: 1rem;
+    left: 1rem;
+    width: calc(100% - 2rem);
+  }
+}
