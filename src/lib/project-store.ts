@@ -1,9 +1,9 @@
 import { DEMO_PROJECT } from "@/data/demo-project";
-import type { LandscapeGalleryEntry, MiniGardenKit, SchoolProject, SiteImage, SitePlan, StudentLandscapeDesign, StudentMiniGardenDesign } from "@/domain/models";
+import type { AutoSiteBackground, LandscapeGalleryEntry, MiniGardenKit, SchoolProject, SiteImage, StudentLandscapeDesign, StudentMiniGardenDesign } from "@/domain/models";
 
 export const PROJECT_STORAGE_KEY = "gardening.teacher.project.v1";
 export const SITE_IMAGE_META_STORAGE_KEY = "gardening.site-image.meta.v1";
-export const SITE_PLAN_STORAGE_KEY = "gardening.site-plan.v1";
+export const AUTO_SITE_BACKGROUND_META_STORAGE_KEY = "gardening.site-background.meta.v1";
 export const STUDENT_SESSION_STORAGE_PREFIX = "gardening.student.session.";
 export const STUDENT_LANDSCAPE_DESIGN_STORAGE_PREFIX = "gardening.student.landscape-design.v1.";
 export const CLASS_LANDSCAPE_GALLERY_STORAGE_PREFIX = "gardening.class.landscape-gallery.v1.";
@@ -44,11 +44,15 @@ export function parseStoredSiteImage(value: string | null): SiteImage | null {
   }
 }
 
-export function parseStoredSitePlan(value: string | null): SitePlan | null {
+export function parseStoredAutoSiteBackground(value: string | null): AutoSiteBackground | null {
   if (!value) return null;
   try {
-    const plan = JSON.parse(value) as SitePlan;
-    return Array.isArray(plan.features) ? plan : null;
+    const background = JSON.parse(value) as AutoSiteBackground;
+    return typeof background?.siteImageId === "string"
+      && typeof background.storageKey === "string"
+      && typeof background.method === "string"
+      ? background
+      : null;
   } catch {
     return null;
   }

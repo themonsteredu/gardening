@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function TeacherSitePlanPage() {
-  redirect("/teacher/editable-zone");
+  redirect("/teacher/site-image");
 }

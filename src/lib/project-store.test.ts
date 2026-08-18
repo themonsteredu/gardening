@@ -6,6 +6,7 @@ import {
   getStudentSessionStorageKey,
   parseStoredLandscapeGallery,
   parseStoredLandscapeDesign,
+  parseStoredAutoSiteBackground,
   parseStoredMiniGardenKits,
   parseStoredMiniGardenDesign,
   upsertLandscapeGalleryEntry,
@@ -13,6 +14,24 @@ import {
 } from "./project-store";
 
 describe("student browser storage", () => {
+  it("parses an automatically generated school background", () => {
+    const background = {
+      id: "background-1",
+      siteImageId: "image-1",
+      storageKey: "background-1",
+      mimeType: "image/webp",
+      width: 1200,
+      height: 800,
+      generatedAt: "2026-08-18T00:00:00.000Z",
+      method: "visual-simplification-v1",
+      adjustment: 0,
+      ignoredTopRatio: 0.06,
+      ignoredBottomRatio: 0.04,
+    };
+    expect(parseStoredAutoSiteBackground(JSON.stringify(background))).toEqual(background);
+    expect(parseStoredAutoSiteBackground('{"siteImageId":1}')).toBeNull();
+  });
+
   it("namespaces session and design data by student session", () => {
     expect(getStudentSessionStorageKey("student-1")).toBe("gardening.student.session.student-1");
     expect(getStudentLandscapeDesignStorageKey("student-1")).toBe("gardening.student.landscape-design.v1.student-1");

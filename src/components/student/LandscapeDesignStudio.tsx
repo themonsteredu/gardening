@@ -13,31 +13,27 @@ import type {
   Point2D,
   SchoolProject,
   SiteImage,
-  SitePlan,
+  AutoSiteBackground,
   StudentLandscapeDesign,
 } from "@/domain/models";
 import {
   createLandscapeObject,
   getMaterialFootprintRadius,
-  isFootprintInsideEditableZones,
+  isFootprintInsideCanvas,
 } from "@/lib/landscape-design";
+import { normalizePointerPoint } from "@/lib/pointer-coordinate";
 import {
-  getEditableZoneFeatures,
-  normalizePointerPoint,
-  pointsToSvg,
-} from "@/lib/site-plan";
-import {
+  AUTO_SITE_BACKGROUND_META_STORAGE_KEY,
+  parseStoredAutoSiteBackground,
   parseStoredSiteImage,
-  parseStoredSitePlan,
   parseStoredLandscapeDesign,
   getStudentLandscapeDesignStorageKey,
   SITE_IMAGE_META_STORAGE_KEY,
-  SITE_PLAN_STORAGE_KEY,
 } from "@/lib/project-store";
 import { getSiteImageFile } from "@/lib/site-image-store";
 import { useBrowserStorageValue, writeBrowserStorage } from "@/lib/use-browser-storage";
 
-const PRIMARY_MATERIAL_IDS = ["tree-canopy", "pine", "flower", "lawn", "bench", "rock"];
+const PRIMARY_MATERIAL_IDS = ["tree-canopy", "pine", "flower", "lawn", "bench", "rock", "dirt-path", "flower-bed"];
 
 export function LandscapeDesignStudio({
   project,
@@ -53,21 +49,21 @@ export function LandscapeDesignStudio({
   onContinue: () => void;
 }) {
   const imageValue = useBrowserStorageValue("local", SITE_IMAGE_META_STORAGE_KEY);
-  const planValue = useBrowserStorageValue("local", SITE_PLAN_STORAGE_KEY);
+  const backgroundValue = useBrowserStorageValue("local", AUTO_SITE_BACKGROUND_META_STORAGE_KEY);
   const siteImage = useMemo(() => parseStoredSiteImage(imageValue), [imageValue]);
-  const sitePlan = useMemo(() => parseStoredSitePlan(planValue), [planValue]);
+  const autoBackground = useMemo(() => parseStoredAutoSiteBackground(backgroundValue), [backgroundValue]);
   const designStorageKey = getStudentLandscapeDesignStorageKey(sessionId);
   const designValue = useBrowserStorageValue("local", designStorageKey);
   const storedDesign = useMemo(() => parseStoredLandscapeDesign(designValue), [designValue]);
 
   return (
     <LandscapeDesignWorkspace
-      key={`${project.siteImageId ?? "no-image"}-${project.sitePlanId ?? "no-plan"}-${storedDesign?.id ?? "new-design"}`}
+      key={`${project.siteImageId ?? "no-image"}-${autoBackground?.id ?? "no-background"}-${storedDesign?.id ?? "new-design"}`}
       project={project}
       nickname={nickname}
       sessionId={sessionId}
       siteImage={siteImage}
-      sitePlan={sitePlan}
+      autoBackground={autoBackground}
       storedDesign={storedDesign}
       designStorageKey={designStorageKey}
       onPreview3D={onPreview3D}
@@ -81,7 +77,7 @@ function LandscapeDesignWorkspace({
   nickname,
   sessionId,
   siteImage,
-  sitePlan,
+  autoBackground,
   storedDesign,
   designStorageKey,
   onPreview3D,
@@ -91,7 +87,7 @@ function LandscapeDesignWorkspace({
   nickname: string;
   sessionId: string;
   siteImage: SiteImage | null;
-  sitePlan: SitePlan | null;
+  autoBackground: AutoSiteBackground | null;
   storedDesign: StudentLandscapeDesign | null;
   designStorageKey: string;
   onPreview3D: () => void;
@@ -106,7 +102,9 @@ function LandscapeDesignWorkspace({
     storedDesign?.schoolProjectId === project.id ? storedDesign.objects : [],
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [planUrl, setPlanUrl] = useState<string | null>(null);
+  const [backgroundMode, setBackgroundMode] = useState<"photo" | "plan">("plan");
   const [loadError, setLoadError] = useState(false);
   const [notice, setNotice] = useState("재료를 끌어 사진 위에 놓아보세요.");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "loaded">(
@@ -114,8 +112,7 @@ function LandscapeDesignWorkspace({
   );
 
   const activeImage = siteImage?.id === project.siteImageId ? siteImage : null;
-  const activePlan = sitePlan?.id === project.sitePlanId ? sitePlan : null;
-  const zones = activePlan ? getEditableZoneFeatures(activePlan.features) : [];
+  const activeBackground = autoBackground?.siteImageId === activeImage?.id ? autoBackground : null;
   const selectedObject = objects.find((object) => object.id === selectedId) ?? null;
   const selectedMaterial = selectedObject ? findLandscapeMaterial(selectedObject.materialId) : null;
   const paletteMaterials = showMore
@@ -148,22 +145,25 @@ function LandscapeDesignWorkspace({
   useEffect(() => {
     if (!activeImage) return;
     let alive = true;
-    let objectUrl: string | null = null;
-    getSiteImageFile(activeImage.storageKey)
-      .then((blob) => {
-        if (!alive || !blob) {
-          if (alive) setLoadError(true);
-          return;
-        }
-        objectUrl = URL.createObjectURL(blob);
-        setPreviewUrl(objectUrl);
+    let photoObjectUrl: string | null = null;
+    let planObjectUrl: string | null = null;
+    Promise.all([
+      getSiteImageFile(activeImage.storageKey),
+      activeBackground ? getSiteImageFile(activeBackground.storageKey) : Promise.resolve(null),
+    ]).then(([photoBlob, planBlob]) => {
+        if (!alive || !photoBlob) { if (alive) setLoadError(true); return; }
+        photoObjectUrl = URL.createObjectURL(photoBlob);
+        planObjectUrl = URL.createObjectURL(planBlob ?? photoBlob);
+        setPhotoUrl(photoObjectUrl);
+        setPlanUrl(planObjectUrl);
       })
       .catch(() => { if (alive) setLoadError(true); });
     return () => {
       alive = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (photoObjectUrl) URL.revokeObjectURL(photoObjectUrl);
+      if (planObjectUrl) URL.revokeObjectURL(planObjectUrl);
     };
-  }, [activeImage]);
+  }, [activeBackground, activeImage]);
 
   function pointFromClient(clientX: number, clientY: number): Point2D | null {
     if (!stageRef.current) return null;
@@ -179,8 +179,8 @@ function LandscapeDesignWorkspace({
   function placeMaterial(materialId: string, point: Point2D) {
     const material = findLandscapeMaterial(materialId);
     if (!material) return;
-    if (!isFootprintInsideEditableZones(point, getMaterialFootprintRadius(material), zones)) {
-      setNotice("초록색 경계 안에만 재료를 놓을 수 있어요.");
+    if (!isFootprintInsideCanvas(point, getMaterialFootprintRadius(material))) {
+      setNotice("사진 안쪽에 재료를 놓아주세요.");
       return;
     }
     const id = `landscape-object-${crypto.randomUUID()}`;
@@ -188,7 +188,7 @@ function LandscapeDesignWorkspace({
     changeObjects((current) => [...current, next]);
     setSelectedId(id);
     setActiveMaterialId(null);
-    setNotice(`${material.name} 재료를 배치했습니다. 오른쪽에서 크기와 방향을 조절할 수 있습니다.`);
+    setNotice(`${material.name} 재료를 배치했습니다.`);
   }
 
   function updateObject(id: string, patch: Partial<LandscapeObject>) {
@@ -200,7 +200,7 @@ function LandscapeDesignWorkspace({
     const point = pointFromClient(event.clientX, event.clientY);
     const object = objects.find((item) => item.id === id);
     const material = object ? findLandscapeMaterial(object.materialId) : null;
-    if (!point || !object || !material || !isFootprintInsideEditableZones(point, getMaterialFootprintRadius(material, object.scale), zones)) return;
+    if (!point || !object || !material || !isFootprintInsideCanvas(point, getMaterialFootprintRadius(material, object.scale))) return;
     updateObject(id, point);
   }
 
@@ -208,7 +208,7 @@ function LandscapeDesignWorkspace({
     if (!selectedObject) return;
     const offsetPoint = { x: Math.min(0.98, selectedObject.x + 0.025), y: Math.min(0.98, selectedObject.y + 0.025) };
     const material = findLandscapeMaterial(selectedObject.materialId);
-    const position = material && isFootprintInsideEditableZones(offsetPoint, getMaterialFootprintRadius(material, selectedObject.scale), zones)
+    const position = material && isFootprintInsideCanvas(offsetPoint, getMaterialFootprintRadius(material, selectedObject.scale))
       ? offsetPoint
       : { x: selectedObject.x, y: selectedObject.y };
     const copy = {
@@ -234,8 +234,8 @@ function LandscapeDesignWorkspace({
     const nextScale = Math.max(0.5, Math.min(2, selectedObject.scale + delta));
     const point = { x: selectedObject.x, y: selectedObject.y };
     const radius = getMaterialFootprintRadius(selectedMaterial, nextScale);
-    if (!isFootprintInsideEditableZones(point, radius, zones)) {
-      setNotice("영역 안에서만 크게 만들 수 있어요.");
+    if (!isFootprintInsideCanvas(point, radius)) {
+      setNotice("사진 안에서만 크게 만들 수 있어요.");
       return;
     }
     updateObject(selectedObject.id, { scale: nextScale });
@@ -248,11 +248,11 @@ function LandscapeDesignWorkspace({
     setNotice("재료를 돌렸습니다.");
   }
 
-  if (!activeImage || !activePlan || zones.length === 0) {
+  if (!activeImage) {
     return (
       <main className="student-design-empty">
         <h1>학교 공간 준비 중</h1>
-        <p>선생님이 학교 사진과 조경할 공간을 표시하면 바로 시작할 수 있어요.</p>
+        <p>선생님이 학교 사진을 올리면 바로 시작할 수 있어요.</p>
       </main>
     );
   }
@@ -278,7 +278,7 @@ function LandscapeDesignWorkspace({
               onClick={() => {
                 setActiveMaterialId((current) => current === material.id ? null : material.id);
                 setSelectedId(null);
-                setNotice(`${material.name} 선택됨 · 초록색 경계 안을 눌러보세요.`);
+                setNotice(`${material.name} 선택됨 · 원하는 곳을 눌러보세요.`);
               }}
               onDragStart={(event) => {
                 event.dataTransfer.setData("text/gardening-material", material.id);
@@ -297,7 +297,11 @@ function LandscapeDesignWorkspace({
 
       <section className="student-plan-workspace">
         <header className="student-plan-toolbar">
-          <div><span>우리 학교 조경하기</span><strong>{project.schoolName}</strong></div>
+          <div><span>우리 학교를 조경해보세요</span><strong>{project.schoolName}</strong></div>
+          <div className="student-background-toggle" role="group" aria-label="학교 배경 선택">
+            <button type="button" className={backgroundMode === "photo" ? "is-active" : ""} onClick={() => setBackgroundMode("photo")}>실제사진</button>
+            <button type="button" className={backgroundMode === "plan" ? "is-active" : ""} onClick={() => setBackgroundMode("plan")}>설계도</button>
+          </div>
           <div className="student-plan-save-summary">
             <span className={`save-state save-state--${saveState}`}>
               {saveState === "saving" ? "자동 저장 중" : saveState === "loaded" ? "저장된 설계 불러옴" : saveState === "saved" ? "자동 저장됨" : "새 설계"}
@@ -323,13 +327,10 @@ function LandscapeDesignWorkspace({
           }}
           aria-label="학교 사진 위 조경 재료 배치"
         >
-          {!previewUrl && !loadError ? <div className="plan-stage-message">학교 사진 불러오는 중</div> : null}
+          {!photoUrl && !loadError ? <div className="plan-stage-message">학교 공간 불러오는 중</div> : null}
           {loadError ? <div className="plan-stage-message">학교 이미지를 불러오지 못했습니다.</div> : null}
-          {previewUrl && activeImage.mimeType === "application/pdf" ? <object data={previewUrl} type="application/pdf" title="학교 배치도 PDF" /> : null}
-          {previewUrl && activeImage.mimeType !== "application/pdf" ? <Image src={previewUrl} alt="학생 설계용 학교 공간" fill sizes="(max-width: 1000px) 100vw, 65vw" unoptimized draggable={false} /> : null}
-          <svg className="student-base-overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
-            {zones.map((zone) => <polygon className="student-editable-shape" key={zone.id} points={pointsToSvg(zone.points)} />)}
-          </svg>
+          {photoUrl && activeImage.mimeType === "application/pdf" ? <object className={backgroundMode === "plan" ? "is-auto-plan-fallback" : ""} data={photoUrl} type="application/pdf" title="학교 배치도 PDF" /> : null}
+          {photoUrl && activeImage.mimeType !== "application/pdf" ? <Image className={backgroundMode === "plan" && activeBackground?.method === "source-filter-fallback" ? "is-auto-plan-fallback" : ""} src={backgroundMode === "plan" ? (planUrl ?? photoUrl) : photoUrl} alt={backgroundMode === "plan" ? "자동 설계도" : "실제 학교 사진"} fill sizes="(max-width: 1000px) 100vw, 65vw" unoptimized draggable={false} /> : null}
           {objects.map((object) => {
             const material = findLandscapeMaterial(object.materialId);
             if (!material) return null;
@@ -367,7 +368,7 @@ function LandscapeDesignWorkspace({
               </button>
             );
           })}
-          <div className="student-zone-label">여기에 놓기</div>
+          {objects.length === 0 ? <div className="student-zone-label">여기에 놓기</div> : null}
         </div>
         <footer className="student-plan-status">
           <p role="status">{notice}</p>

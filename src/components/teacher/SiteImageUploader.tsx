@@ -1,264 +1,138 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { StoredSiteImagePreview } from "@/components/teacher/StoredSiteImagePreview";
-import type { SiteImage } from "@/domain/models";
+import { AutoSiteBackgroundPreview } from "@/components/teacher/AutoSiteBackgroundPreview";
+import type { AutoSiteBackground, SiteImage } from "@/domain/models";
+import { createAutoSiteBackground } from "@/lib/auto-site-background";
 import {
+  AUTO_SITE_BACKGROUND_META_STORAGE_KEY,
+  parseStoredAutoSiteBackground,
   parseStoredProject,
   parseStoredSiteImage,
   PROJECT_STORAGE_KEY,
   SITE_IMAGE_META_STORAGE_KEY,
 } from "@/lib/project-store";
-import {
-  formatFileSize,
-  resolveSiteImageMimeType,
-  SITE_IMAGE_ACCEPT,
-  validateSiteImageCandidate,
-} from "@/lib/site-image";
-import {
-  deleteSiteImageFile,
-  saveSiteImageFile,
-} from "@/lib/site-image-store";
-import {
-  useBrowserStorageValue,
-  writeBrowserStorage,
-} from "@/lib/use-browser-storage";
+import { resolveSiteImageMimeType, SITE_IMAGE_ACCEPT, validateSiteImageCandidate } from "@/lib/site-image";
+import { deleteSiteImageFile, getSiteImageFile, saveSiteImageFile } from "@/lib/site-image-store";
+import { removeBrowserStorage, useBrowserStorageValue, writeBrowserStorage } from "@/lib/use-browser-storage";
 
-interface SelectedSiteFile {
-  file: File;
-  mimeType: string;
-  previewUrl: string;
-  width: number;
-  height: number;
-}
-
-type SaveState = "idle" | "saving" | "saved";
+type ProcessState = "idle" | "processing" | "ready";
 
 export function SiteImageUploader() {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const candidateUrlRef = useRef<string | null>(null);
-  const [candidate, setCandidate] = useState<SelectedSiteFile | null>(null);
-  const [dragActive, setDragActive] = useState(false);
+  const [state, setState] = useState<ProcessState>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [showAdjust, setShowAdjust] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const projectValue = useBrowserStorageValue("local", PROJECT_STORAGE_KEY);
+  const imageValue = useBrowserStorageValue("local", SITE_IMAGE_META_STORAGE_KEY);
+  const backgroundValue = useBrowserStorageValue("local", AUTO_SITE_BACKGROUND_META_STORAGE_KEY);
+  const project = useMemo(() => parseStoredProject(projectValue), [projectValue]);
+  const siteImage = useMemo(() => parseStoredSiteImage(imageValue), [imageValue]);
+  const background = useMemo(() => parseStoredAutoSiteBackground(backgroundValue), [backgroundValue]);
+  const activeImage = siteImage?.id === project.siteImageId ? siteImage : null;
+  const activeBackground = background?.siteImageId === activeImage?.id ? background : null;
+  const ready = Boolean(activeImage && activeBackground) || state === "ready";
 
-  const storedProjectValue = useBrowserStorageValue("local", PROJECT_STORAGE_KEY);
-  const storedSiteImageValue = useBrowserStorageValue("local", SITE_IMAGE_META_STORAGE_KEY);
-  const project = useMemo(() => parseStoredProject(storedProjectValue), [storedProjectValue]);
-  const savedSiteImage = useMemo(
-    () => parseStoredSiteImage(storedSiteImageValue),
-    [storedSiteImageValue],
-  );
-  const activeSavedImage = savedSiteImage?.id === project.siteImageId ? savedSiteImage : null;
-
-  useEffect(() => {
-    return () => {
-      if (candidateUrlRef.current) URL.revokeObjectURL(candidateUrlRef.current);
-    };
-  }, []);
-
-  async function selectFile(file: File) {
-    setError(null);
-    setSaveState("idle");
-    const validationError = validateSiteImageCandidate(file);
-    if (validationError) {
-      setError(validationError);
-      return;
+  async function buildBackground(file: Blob, siteImageId: string, mimeType: string, adjustment = 0): Promise<AutoSiteBackground> {
+    const id = `site-background-${crypto.randomUUID()}`;
+    if (!mimeType.startsWith("image/")) {
+      return { id, siteImageId, storageKey: siteImageId, mimeType, width: 0, height: 0, generatedAt: new Date().toISOString(), method: "source-filter-fallback", adjustment, ignoredTopRatio: 0, ignoredBottomRatio: 0 };
     }
+    try {
+      const result = await createAutoSiteBackground(file, adjustment);
+      await saveSiteImageFile(id, result.blob);
+      return { id, siteImageId, storageKey: id, mimeType: result.blob.type || "image/webp", width: result.width, height: result.height, generatedAt: new Date().toISOString(), method: "visual-simplification-v1", adjustment, ignoredTopRatio: result.ignoredTopRatio, ignoredBottomRatio: result.ignoredBottomRatio };
+    } catch {
+      return { id, siteImageId, storageKey: siteImageId, mimeType, width: 0, height: 0, generatedAt: new Date().toISOString(), method: "source-filter-fallback", adjustment, ignoredTopRatio: 0, ignoredBottomRatio: 0 };
+    }
+  }
 
+  async function processFile(file: File) {
+    setError(null);
+    const validationError = validateSiteImageCandidate(file);
+    if (validationError) { setError(validationError); return; }
     const mimeType = resolveSiteImageMimeType(file);
     if (!mimeType) return;
+    setState("processing");
+    const id = `site-image-${crypto.randomUUID()}`;
     let width = 0;
     let height = 0;
-    if (mimeType.startsWith("image/")) {
-      try {
+    try {
+      if (mimeType.startsWith("image/")) {
         const bitmap = await createImageBitmap(file);
         width = bitmap.width;
         height = bitmap.height;
         bitmap.close();
-      } catch {
-        // Some managed school browsers cannot decode dimensions up front.
-        // The image can still be previewed and used as the base layer.
       }
-    }
-
-    if (candidateUrlRef.current) URL.revokeObjectURL(candidateUrlRef.current);
-    const previewUrl = URL.createObjectURL(file);
-    candidateUrlRef.current = previewUrl;
-    setCandidate({ file, mimeType, previewUrl, width, height });
-  }
-
-  function openFilePicker() {
-    inputRef.current?.click();
-  }
-
-  async function saveSelectedFile() {
-    if (!candidate || saveState === "saving") return;
-    setSaveState("saving");
-    setError(null);
-
-    const id = `site-image-${crypto.randomUUID()}`;
-    const metadata: SiteImage = {
-      id,
-      schoolProjectId: project.id,
-      name: candidate.file.name,
-      url: null,
-      mimeType: candidate.mimeType,
-      width: candidate.width,
-      height: candidate.height,
-      sizeBytes: candidate.file.size,
-      storageKey: id,
-      uploadedAt: new Date().toISOString(),
-    };
-
-    try {
-      await saveSiteImageFile(id, candidate.file);
+      await saveSiteImageFile(id, file);
+      const nextBackground = await buildBackground(file, id, mimeType);
+      const metadata: SiteImage = { id, schoolProjectId: project.id, name: file.name, url: null, mimeType, width, height, sizeBytes: file.size, storageKey: id, uploadedAt: new Date().toISOString() };
       writeBrowserStorage("local", SITE_IMAGE_META_STORAGE_KEY, JSON.stringify(metadata));
-      writeBrowserStorage(
-        "local",
-        PROJECT_STORAGE_KEY,
-        JSON.stringify({ ...project, siteImageId: id }),
-      );
-      if (activeSavedImage && activeSavedImage.storageKey !== id) {
-        await deleteSiteImageFile(activeSavedImage.storageKey).catch(() => undefined);
-      }
-      if (candidateUrlRef.current) URL.revokeObjectURL(candidateUrlRef.current);
-      candidateUrlRef.current = null;
-      setCandidate(null);
-      setSaveState("saved");
+      writeBrowserStorage("local", AUTO_SITE_BACKGROUND_META_STORAGE_KEY, JSON.stringify(nextBackground));
+      writeBrowserStorage("local", PROJECT_STORAGE_KEY, JSON.stringify({ ...project, siteImageId: id, status: "ready" }));
+      removeBrowserStorage("local", "gardening.site-plan.v1");
+      if (activeImage?.storageKey && activeImage.storageKey !== id) await deleteSiteImageFile(activeImage.storageKey).catch(() => undefined);
+      if (activeBackground?.storageKey && activeBackground.storageKey !== activeImage?.storageKey && activeBackground.storageKey !== nextBackground.storageKey) await deleteSiteImageFile(activeBackground.storageKey).catch(() => undefined);
+      setState("ready");
     } catch {
-      setSaveState("idle");
-      setError("파일을 브라우저에 저장하지 못했습니다. 저장 공간을 확인한 뒤 다시 시도해 주세요.");
+      setState("idle");
+      setError("사진을 준비하지 못했습니다. 다른 이미지로 다시 시도해 주세요.");
     }
+  }
+
+  async function adjustBackground(adjustment: number) {
+    if (!activeImage || !activeBackground || state === "processing") return;
+    setState("processing");
+    setError(null);
+    try {
+      const source = await getSiteImageFile(activeImage.storageKey);
+      if (!source) throw new Error("missing source");
+      const nextBackground = await buildBackground(source, activeImage.id, activeImage.mimeType, adjustment);
+      writeBrowserStorage("local", AUTO_SITE_BACKGROUND_META_STORAGE_KEY, JSON.stringify(nextBackground));
+      if (activeBackground.storageKey !== activeImage.storageKey && activeBackground.storageKey !== nextBackground.storageKey) await deleteSiteImageFile(activeBackground.storageKey).catch(() => undefined);
+      setState("ready");
+    } catch {
+      setState("ready");
+      setError("설계도 밝기를 바꾸지 못했습니다.");
+    }
+  }
+
+  function startClass() {
+    writeBrowserStorage("local", PROJECT_STORAGE_KEY, JSON.stringify({ ...project, status: "open" }));
   }
 
   return (
-    <div className="site-upload-page">
+    <div className="site-upload-page site-auto-page">
       <AppHeader compact current="teacher" />
-      <main className="site-upload-main">
-        <header className="site-upload-heading">
-          <div>
-            <Link className="text-back" href="/teacher">← 수업 설계실</Link>
-            <p className="eyebrow">학교 사진</p>
-            <h1>학교 사진 넣기</h1>
-            <p>항공사진이나 학교 배치 이미지를 그대로 사용합니다.</p>
-          </div>
-        </header>
-
-        <div className="site-upload-layout">
-          <aside className="upload-guide-panel">
-            <section>
-              <span className="guide-index">01</span>
-              <h2>공간이 잘 보이는 자료</h2>
-              <p>건물, 운동장, 기존 수목과 빈 공간이 한 화면에서 구분되는 자료가 좋습니다.</p>
-            </section>
-            <section>
-              <span className="guide-index">02</span>
-              <h2>지원하는 파일</h2>
-              <ul>
-                <li>학교 항공사진 또는 위성사진 캡처</li>
-                <li>학교 배치도·교내 안내도</li>
-                <li>JPG, PNG, WebP, PDF</li>
-                <li>파일당 최대 20MB</li>
-              </ul>
-            </section>
-            <div className="privacy-note">
-              <strong>등록 전 확인</strong>
-              <p>학생 얼굴, 차량 번호 등 개인을 식별할 수 있는 정보가 선명하게 보이지 않는 자료를 사용하세요.</p>
-            </div>
-          </aside>
-
-          <section className="upload-workspace" aria-labelledby="upload-workspace-title">
-            <div className="upload-workspace__heading">
-              <div><span>PROJECT</span><strong>{project.schoolName} · {project.className}</strong></div>
-              <p id="upload-workspace-title">학생 화면에 보일 학교 사진</p>
-            </div>
-
-            {!candidate && !activeSavedImage ? (
-              <button
-                type="button"
-                className={`file-dropzone ${dragActive ? "is-dragging" : ""}`}
-                onClick={openFilePicker}
-                onDragEnter={(event) => { event.preventDefault(); setDragActive(true); }}
-                onDragOver={(event) => { event.preventDefault(); setDragActive(true); }}
-                onDragLeave={(event) => { event.preventDefault(); setDragActive(false); }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  setDragActive(false);
-                  const file = event.dataTransfer.files[0];
-                  if (file) void selectFile(file);
-                }}
-              >
-                <span className="upload-mark" aria-hidden="true"><i /><i /></span>
-                <strong>학교 이미지 또는 PDF를 놓아주세요.</strong>
-                <p>파일을 여기로 드래그하거나 눌러서 선택하세요.</p>
-                <span className="dropzone-formats">JPG · PNG · WEBP · PDF / 최대 20MB</span>
-              </button>
-            ) : null}
-
-            {candidate ? (
-              <div className="candidate-preview">
-                <div className="candidate-preview__media">
-                  {candidate.mimeType === "application/pdf" ? (
-                    <object data={candidate.previewUrl} type="application/pdf" title={`${candidate.file.name} PDF 미리보기`}>
-                      <div className="pdf-fallback"><span>PDF</span><strong>{candidate.file.name}</strong></div>
-                    </object>
-                  ) : (
-                    <Image src={candidate.previewUrl} alt="선택한 학교 공간 이미지 미리보기" fill sizes="(max-width: 900px) 100vw, 70vw" unoptimized />
-                  )}
-                  <span className="source-layer-badge">학교 사진</span>
-                </div>
-                <div className="candidate-preview__info">
-                  <div><span>{candidate.mimeType === "application/pdf" ? "PDF" : "IMAGE"}</span><strong>{candidate.file.name}</strong></div>
-                  <p>{formatFileSize(candidate.file.size)}{candidate.width > 0 ? ` · ${candidate.width} × ${candidate.height}px` : ""}</p>
-                </div>
+      <main className="site-auto-main">
+        <Link className="text-back" href="/teacher">← 수업 설계실</Link>
+        <section className="site-auto-card">
+          {!ready && state !== "processing" ? (
+            <>
+              <header><p className="eyebrow">학교 공간 준비</p><h1>학교 사진 올리기</h1></header>
+              <label htmlFor="site-photo-input" className={`site-auto-dropzone ${dragActive ? "is-dragging" : ""}`} onDragEnter={(event) => { event.preventDefault(); setDragActive(true); }} onDragOver={(event) => { event.preventDefault(); setDragActive(true); }} onDragLeave={() => setDragActive(false)} onDrop={(event) => { event.preventDefault(); setDragActive(false); const file = event.dataTransfer.files[0]; if (file) void processFile(file); }}>
+                <span aria-hidden="true">＋</span><strong>학교 사진 선택</strong><small>항공사진 · 지도 캡처 · 배치도</small>
+              </label>
+            </>
+          ) : null}
+          {state === "processing" ? <div className="site-auto-processing" role="status"><span aria-hidden="true" /><h1>학교 공간을 준비하고 있어요</h1></div> : null}
+          {ready && state !== "processing" && activeBackground ? (
+            <>
+              <header className="site-auto-ready-heading"><p className="eyebrow">준비 완료</p><h1>학교 공간 준비 완료</h1></header>
+              <AutoSiteBackgroundPreview background={activeBackground} />
+              <div className="site-auto-actions">
+                <label className="button button--quiet" htmlFor="site-photo-input">사진 바꾸기</label>
+                <Link className="button button--primary" href="/teacher" onClick={startClass}>수업 시작</Link>
               </div>
-            ) : null}
-
-            {!candidate && activeSavedImage ? (
-              <StoredSiteImagePreview siteImage={activeSavedImage} />
-            ) : null}
-
-            <input
-              ref={inputRef}
-              className="visually-hidden"
-              type="file"
-              accept={SITE_IMAGE_ACCEPT}
-              aria-label="학교 이미지 파일 선택"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void selectFile(file);
-                event.target.value = "";
-              }}
-            />
-
-            {error ? <p className="form-error upload-error" role="alert">{error}</p> : null}
-            {saveState === "saved" ? (
-              <div className="upload-success" role="status"><span>✓</span><div><strong>학교 사진이 등록되었습니다.</strong><p>이제 조경할 공간만 표시하면 됩니다.</p></div></div>
-            ) : null}
-
-            <div className="upload-actions">
-              {(candidate || activeSavedImage) ? (
-                <button className="button button--quiet" type="button" onClick={openFilePicker}>
-                  {activeSavedImage && !candidate ? "파일 교체" : "다른 파일 선택"}
-                </button>
-              ) : <span />}
-              <div>
-                <Link className="button button--quiet" href="/teacher">나중에 하기</Link>
-                {candidate ? (
-                  <button className="button button--primary" type="button" onClick={saveSelectedFile} disabled={saveState === "saving"}>
-                    {saveState === "saving" ? "저장하는 중" : "이 이미지 등록"}
-                  </button>
-                ) : (
-                  <Link className="button button--primary" href="/teacher/editable-zone">조경영역 표시</Link>
-                )}
-              </div>
-            </div>
-          </section>
-        </div>
+              <button className="site-auto-adjust-toggle" type="button" onClick={() => setShowAdjust((current) => !current)}>간단히 수정</button>
+              {showAdjust ? <div className="site-auto-adjustments"><button type="button" onClick={() => void adjustBackground(-12)}>조금 진하게</button><button type="button" onClick={() => void adjustBackground(12)}>더 밝게</button><button type="button" onClick={() => void adjustBackground(0)}>초기화</button></div> : null}
+            </>
+          ) : null}
+          <input id="site-photo-input" className="visually-hidden" type="file" accept={SITE_IMAGE_ACCEPT} aria-label="학교 사진 선택" onChange={(event) => { const file = event.target.files?.[0]; if (file) void processFile(file); event.target.value = ""; }} />
+          {error ? <p className="form-error site-auto-error" role="alert">{error}</p> : null}
+        </section>
       </main>
     </div>
   );

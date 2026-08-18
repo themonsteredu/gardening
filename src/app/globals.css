@@ -20,6 +20,141 @@
   --shadow-lg: 0 24px 70px rgb(16 39 31 / 16%);
 }
 
+/* Photo-first automatic school background flow */
+.site-auto-main {
+  width: min(1040px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 28px 0 72px;
+}
+
+.site-auto-main > .text-back {
+  display: inline-flex;
+  margin-bottom: 20px;
+}
+
+.site-auto-card {
+  width: min(880px, 100%);
+  margin: 0 auto;
+  padding: clamp(24px, 5vw, 52px);
+  border: 1px solid #dce4dc;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 18px 50px rgb(35 54 42 / 8%);
+  text-align: center;
+}
+
+.site-auto-card h1 {
+  margin: 6px 0 0;
+  font-size: clamp(1.75rem, 4vw, 2.7rem);
+}
+
+.site-auto-dropzone {
+  width: 100%;
+  min-height: 360px;
+  margin-top: 28px;
+  border: 2px dashed #a9b9aa;
+  border-radius: 20px;
+  background: #f7faf6;
+  color: #22372a;
+  display: grid;
+  place-content: center;
+  gap: 10px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.site-auto-dropzone.is-dragging { border-color: #2f7545; background: #eef7ef; }
+.site-auto-dropzone > span { font-size: 2.5rem; font-weight: 300; color: #3c724a; }
+.site-auto-dropzone strong { font-size: 1.25rem; }
+.site-auto-dropzone small { color: #6c786f; }
+
+.site-auto-processing {
+  min-height: 460px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 20px;
+}
+
+.site-auto-processing > span {
+  width: 44px;
+  height: 44px;
+  border: 4px solid #dbe7dc;
+  border-top-color: #34774a;
+  border-radius: 50%;
+  animation: site-auto-spin .8s linear infinite;
+}
+
+@keyframes site-auto-spin { to { transform: rotate(360deg); } }
+
+.auto-background-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  margin-top: 26px;
+  overflow: hidden;
+  border: 1px solid #d9dfd8;
+  border-radius: 18px;
+  background: #eef1ed;
+  display: grid;
+  place-items: center;
+}
+
+.auto-background-preview img,
+.auto-background-preview object { width: 100%; height: 100%; object-fit: contain; }
+.auto-background-preview > b { position: absolute; left: 14px; top: 14px; padding: 6px 10px; border-radius: 999px; background: rgb(255 255 255 / 88%); color: #31533b; font-size: .78rem; }
+.auto-background-preview--compact { margin-top: 0; border: 0; border-radius: 16px; }
+
+.site-auto-actions { display: flex; justify-content: center; gap: 12px; margin-top: 24px; }
+.site-auto-actions .button { min-width: 160px; min-height: 50px; }
+.site-auto-adjust-toggle { margin-top: 14px; border: 0; background: transparent; color: #657069; text-decoration: underline; cursor: pointer; }
+.site-auto-adjustments { display: flex; justify-content: center; gap: 8px; margin-top: 12px; }
+.site-auto-adjustments button { min-height: 42px; padding: 0 14px; border: 1px solid #d5ddd5; border-radius: 10px; background: #f7f9f7; }
+.site-auto-error { margin-top: 16px; }
+
+.teacher-simple-actions .teacher-simple-adjust,
+.teacher-kit-link { color: #66726a; font-size: .88rem; text-decoration: underline; }
+.teacher-kit-link { display: inline-flex; margin-top: 8px; }
+
+.student-design-studio .student-plan-toolbar {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
+.student-design-studio .student-background-toggle {
+  display: inline-flex;
+  justify-self: center;
+  align-self: center;
+  padding: 3px;
+  border: 1px solid #d4ddd5;
+  border-radius: 999px;
+  background: #f3f6f3;
+}
+
+.student-design-studio .student-background-toggle button {
+  min-height: 34px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #69736d;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.student-design-studio .student-background-toggle button.is-active { background: #fff; color: #295e3a; box-shadow: 0 1px 5px rgb(34 57 41 / 12%); }
+.student-plan-stage > .is-auto-plan-fallback { filter: saturate(.24) brightness(1.14) contrast(.82); }
+
+@media (max-width: 760px) {
+  .site-auto-main { width: min(100% - 20px, 1040px); padding-top: 18px; }
+  .site-auto-card { padding: 22px 16px; border-radius: 18px; }
+  .site-auto-dropzone { min-height: 280px; }
+  .site-auto-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .site-auto-actions .button { min-width: 0; min-height: 52px; }
+  .site-auto-adjustments { flex-wrap: wrap; }
+  .student-design-studio .student-plan-toolbar { grid-template-columns: 1fr auto; }
+  .student-design-studio .student-background-toggle { grid-column: 1 / -1; grid-row: 2; }
+}
+
 /* Simplified school-photo workflow */
 .simple-zone-page {
   min-height: 100vh;

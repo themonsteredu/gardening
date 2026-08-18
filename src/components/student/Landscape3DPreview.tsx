@@ -9,12 +9,9 @@ import {
   getStudentLandscapeDesignStorageKey,
   parseStoredLandscapeDesign,
   parseStoredSiteImage,
-  parseStoredSitePlan,
   SITE_IMAGE_META_STORAGE_KEY,
-  SITE_PLAN_STORAGE_KEY,
 } from "@/lib/project-store";
 import { getSiteImageFile } from "@/lib/site-image-store";
-import { getEditableZoneFeatures, getExistingSiteFeatures, getFeatureOption, pointsToSvg } from "@/lib/site-plan";
 import { useBrowserStorageValue } from "@/lib/use-browser-storage";
 
 interface CameraState {
@@ -40,10 +37,8 @@ export function Landscape3DPreview({
   onContinue: () => void;
 }) {
   const imageValue = useBrowserStorageValue("local", SITE_IMAGE_META_STORAGE_KEY);
-  const planValue = useBrowserStorageValue("local", SITE_PLAN_STORAGE_KEY);
   const designValue = useBrowserStorageValue("local", getStudentLandscapeDesignStorageKey(sessionId));
   const siteImage = useMemo(() => parseStoredSiteImage(imageValue), [imageValue]);
-  const sitePlan = useMemo(() => parseStoredSitePlan(planValue), [planValue]);
   const design = useMemo(() => parseStoredLandscapeDesign(designValue), [designValue]);
   const sceneObjects = useMemo(() => buildLandscapeScene(design?.objects ?? []), [design]);
   const [camera, setCamera] = useState<CameraState>(INITIAL_CAMERA);
@@ -52,9 +47,6 @@ export function Landscape3DPreview({
   const dragRef = useRef<{ pointerId: number; x: number; y: number; tilt: number; rotation: number } | null>(null);
 
   const activeImage = siteImage?.id === project.siteImageId ? siteImage : null;
-  const activePlan = sitePlan?.id === project.sitePlanId ? sitePlan : null;
-  const facilities = activePlan ? getExistingSiteFeatures(activePlan.features) : [];
-  const zones = activePlan ? getEditableZoneFeatures(activePlan.features) : [];
   const categoryCounts = sceneObjects.reduce<Record<LandscapeMaterialCategory, number>>(
     (counts, object) => ({ ...counts, [object.category]: counts[object.category] + 1 }),
     { planting: 0, paving: 0, facility: 0, scenery: 0 },
@@ -97,7 +89,7 @@ export function Landscape3DPreview({
     }));
   }
 
-  if (!activeImage || !activePlan || !design || sceneObjects.length === 0) {
+  if (!activeImage || !design || sceneObjects.length === 0) {
     return (
       <main className="student-design-empty">
         <p className="eyebrow">3D SITE REVIEW</p>
@@ -171,13 +163,6 @@ export function Landscape3DPreview({
                 {loadError ? <span className="scene-loading">원본 이미지를 표시하지 못했습니다.</span> : null}
                 {previewUrl && activeImage.mimeType !== "application/pdf" ? <Image src={previewUrl} alt="3D 미리보기의 학교 공간 바닥" fill sizes="70vw" unoptimized draggable={false} /> : null}
                 {previewUrl && activeImage.mimeType === "application/pdf" ? <span className="scene-pdf-base">PDF 학교 배치도</span> : null}
-                <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
-                  {facilities.map((feature) => {
-                    const option = getFeatureOption(feature.kind);
-                    return <polygon key={feature.id} className="scene-existing-zone" points={pointsToSvg(feature.points)} fill={option?.color ?? "#68746c"} stroke={option?.color ?? "#68746c"} />;
-                  })}
-                  {zones.map((zone) => <polygon key={zone.id} className="scene-editable-zone" points={pointsToSvg(zone.points)} />)}
-                </svg>
               </div>
               {sceneObjects.map((object) => {
                 const style = {

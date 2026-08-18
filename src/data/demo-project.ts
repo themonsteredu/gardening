@@ -13,7 +13,6 @@ export const DEMO_PROJECT: SchoolProject = {
   status: "draft",
   createdAt: "2026-08-17T00:00:00.000Z",
   siteImageId: null,
-  sitePlanId: null,
   miniGardenKitId: null,
 };
 

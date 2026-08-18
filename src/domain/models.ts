@@ -23,18 +23,6 @@ export const LANDSCAPE_STAGE_LABELS: Record<LandscapeStage, string> = {
 };
 
 export type ProjectStatus = "draft" | "ready" | "open" | "closed";
-export type PlanLayerKind = "source" | "existing" | "student";
-export type SiteFeatureKind =
-  | "building"
-  | "playground"
-  | "walkway"
-  | "green"
-  | "tree"
-  | "entrance"
-  | "parking"
-  | "facility"
-  | "editable_zone";
-
 export interface Point2D {
   x: number;
   y: number;
@@ -50,7 +38,6 @@ export interface SchoolProject {
   status: ProjectStatus;
   createdAt: string;
   siteImageId: string | null;
-  sitePlanId: string | null;
   miniGardenKitId: string | null;
 }
 
@@ -67,33 +54,18 @@ export interface SiteImage {
   uploadedAt: string;
 }
 
-export interface ScaleReference {
-  start: Point2D;
-  end: Point2D;
-  actualLengthMeters: number;
-  pixelsPerMeter: number;
-}
-
-export interface SitePlanFeature {
-  id: string;
-  kind: SiteFeatureKind;
-  label: string;
-  points: Point2D[];
-  layer: PlanLayerKind;
-}
-
-export interface SitePlan {
+export interface AutoSiteBackground {
   id: string;
   siteImageId: string;
-  features: SitePlanFeature[];
-  scaleReference: ScaleReference | null;
-}
-
-export interface EditableZone {
-  id: string;
-  sitePlanId: string;
-  label: string;
-  points: Point2D[];
+  storageKey: string;
+  mimeType: string;
+  width: number;
+  height: number;
+  generatedAt: string;
+  method: "visual-simplification-v1" | "source-filter-fallback";
+  adjustment: number;
+  ignoredTopRatio: number;
+  ignoredBottomRatio: number;
 }
 
 export type LandscapeMaterialCategory =

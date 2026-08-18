@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { StoredSiteImagePreview } from "@/components/teacher/StoredSiteImagePreview";
+import { AutoSiteBackgroundPreview } from "@/components/teacher/AutoSiteBackgroundPreview";
 import { DEMO_PROJECT, DEMO_STUDENTS } from "@/data/demo-project";
 import {
   LANDSCAPE_STAGE_LABELS,
@@ -14,11 +14,11 @@ import {
   parseStoredProject,
   parseStoredMiniGardenKits,
   parseStoredSiteImage,
-  parseStoredSitePlan,
+  parseStoredAutoSiteBackground,
+  AUTO_SITE_BACKGROUND_META_STORAGE_KEY,
   MINI_GARDEN_KITS_STORAGE_KEY,
   PROJECT_STORAGE_KEY,
   SITE_IMAGE_META_STORAGE_KEY,
-  SITE_PLAN_STORAGE_KEY,
 } from "@/lib/project-store";
 import {
   useBrowserStorageValue,
@@ -46,21 +46,16 @@ export function TeacherDashboard() {
   });
   const storedProject = useBrowserStorageValue("local", PROJECT_STORAGE_KEY);
   const storedSiteImage = useBrowserStorageValue("local", SITE_IMAGE_META_STORAGE_KEY);
-  const storedSitePlan = useBrowserStorageValue("local", SITE_PLAN_STORAGE_KEY);
+  const storedAutoBackground = useBrowserStorageValue("local", AUTO_SITE_BACKGROUND_META_STORAGE_KEY);
   const storedMiniGardenKits = useBrowserStorageValue("local", MINI_GARDEN_KITS_STORAGE_KEY);
   const project = useMemo(() => parseStoredProject(storedProject), [storedProject]);
   const siteImage = useMemo(() => parseStoredSiteImage(storedSiteImage), [storedSiteImage]);
-  const sitePlan = useMemo(() => parseStoredSitePlan(storedSitePlan), [storedSitePlan]);
+  const autoBackground = useMemo(() => parseStoredAutoSiteBackground(storedAutoBackground), [storedAutoBackground]);
   const miniGardenKits = useMemo(() => parseStoredMiniGardenKits(storedMiniGardenKits), [storedMiniGardenKits]);
 
   const setupProgress = useMemo(() => {
-    const done = [
-      Boolean(project.siteImageId),
-      Boolean(sitePlan?.features.some((feature) => feature.kind === "editable_zone")),
-      Boolean(project.miniGardenKitId && miniGardenKits.some((kit) => kit.id === project.miniGardenKitId)),
-    ].filter(Boolean).length;
-    return Math.round((done / 3) * 100);
-  }, [miniGardenKits, project, sitePlan]);
+    return project.siteImageId && autoBackground?.siteImageId === project.siteImageId ? 100 : 0;
+  }, [autoBackground, project.siteImageId]);
 
   function saveProject() {
     const next: SchoolProject = {
@@ -173,7 +168,7 @@ export function TeacherDashboard() {
         </div>
 
         {tab === "setup" ? (
-          <SetupPanel project={project} siteImage={siteImage} sitePlan={sitePlan} miniGardenKits={miniGardenKits} onStart={startClass} />
+          <SetupPanel project={project} siteImage={siteImage} autoBackground={autoBackground} miniGardenKits={miniGardenKits} onStart={startClass} />
         ) : null}
         {tab === "students" ? <StudentsPanel /> : null}
         {tab === "gallery" ? <GalleryPanel /> : null}
@@ -230,7 +225,7 @@ export function TeacherDashboard() {
             </div>
 
             <div className="drawer-note">
-              학교 사진을 넣고 조경할 공간만 표시하면 학생이 바로 재료를 배치할 수 있습니다.
+              학교 사진 한 장을 넣으면 학생이 바로 재료를 배치할 수 있는 설계도가 자동으로 준비됩니다.
             </div>
             <div className="drawer-actions">
               <button className="button button--quiet" type="button" onClick={() => setEditorOpen(false)}>
@@ -255,40 +250,40 @@ export function TeacherDashboard() {
 function SetupPanel({
   project,
   siteImage,
-  sitePlan,
+  autoBackground,
   miniGardenKits,
   onStart,
 }: {
   project: SchoolProject;
   siteImage: ReturnType<typeof parseStoredSiteImage>;
-  sitePlan: ReturnType<typeof parseStoredSitePlan>;
+  autoBackground: ReturnType<typeof parseStoredAutoSiteBackground>;
   miniGardenKits: ReturnType<typeof parseStoredMiniGardenKits>;
   onStart: () => void;
 }) {
   const hasPhoto = Boolean(project.siteImageId && siteImage?.id === project.siteImageId);
-  const hasZone = Boolean(sitePlan?.features.some((feature) => feature.kind === "editable_zone"));
+  const hasBackground = Boolean(autoBackground?.siteImageId === project.siteImageId);
   const hasKit = Boolean(project.miniGardenKitId && miniGardenKits.some((kit) => kit.id === project.miniGardenKitId));
 
   return (
     <section className="dashboard-content dashboard-content--setup">
       <div className="teacher-simple-setup">
         <header>
-          <div><h2>학교 공간 준비</h2><p>사진 위에 조경할 곳만 표시하세요.</p></div>
-          <span className={hasPhoto && hasZone ? "is-ready" : ""}>{hasPhoto && hasZone ? "준비됨" : "준비 중"}</span>
+          <div><h2>학교 공간 준비</h2><p>{hasPhoto && hasBackground ? "자동 설계도가 준비되었습니다." : "학교 사진 한 장이면 충분합니다."}</p></div>
+          <span className={hasPhoto && hasBackground ? "is-ready" : ""}>{hasPhoto && hasBackground ? "준비됨" : "준비 전"}</span>
         </header>
         <div className="teacher-simple-photo">
-        {siteImage && project.siteImageId === siteImage.id ? (
-          <StoredSiteImagePreview siteImage={siteImage} compact showDetails={false} />
+        {autoBackground && hasBackground ? (
+          <AutoSiteBackgroundPreview background={autoBackground} compact />
         ) : (
           <div className="teacher-simple-photo__empty"><strong>학교 사진</strong><span>항공사진이나 배치 이미지를 넣어주세요.</span></div>
         )}
         </div>
         <div className="teacher-simple-actions">
-          <Link className="button button--quiet" href="/teacher/site-image">{hasPhoto ? "사진 바꾸기" : "사진 넣기"}</Link>
-          {hasPhoto ? <Link className="button button--quiet" href="/teacher/editable-zone">조경영역 표시</Link> : <button className="button button--quiet" type="button" disabled>조경영역 표시</button>}
-          <Link className="button button--quiet" href="/teacher/mini-garden-kit">{hasKit ? "재료 바꾸기" : "오늘 재료"}</Link>
-          <button className="button button--primary" type="button" disabled={!hasPhoto || !hasZone} onClick={onStart}>수업 시작</button>
+          <Link className="button button--quiet" href="/teacher/site-image">{hasPhoto ? "사진 바꾸기" : "학교 사진 올리기"}</Link>
+          {hasPhoto && hasBackground ? <Link className="teacher-simple-adjust" href="/teacher/site-image">간단히 수정</Link> : null}
+          <button className="button button--primary" type="button" disabled={!hasPhoto || !hasBackground} onClick={onStart}>수업 시작</button>
         </div>
+        {hasPhoto && hasBackground ? <Link className="teacher-kit-link" href="/teacher/mini-garden-kit">{hasKit ? "오늘의 재료 바꾸기" : "오늘의 재료 준비"}</Link> : null}
         <p className="teacher-simple-mission"><strong>오늘의 의뢰</strong><span>{project.mission}</span></p>
       </div>
     </section>

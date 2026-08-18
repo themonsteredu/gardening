@@ -49,3 +49,10 @@ export function writeBrowserStorage(
     new CustomEvent(INTERNAL_STORAGE_EVENT, { detail: { key } }),
   );
 }
+
+export function removeBrowserStorage(kind: BrowserStorageKind, key: string): void {
+  getStorage(kind).removeItem(key);
+  window.dispatchEvent(
+    new CustomEvent(INTERNAL_STORAGE_EVENT, { detail: { key } }),
+  );
+}

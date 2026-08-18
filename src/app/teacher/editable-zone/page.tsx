@@ -1,5 +1,5 @@
-import { EditableZoneEditor } from "@/components/teacher/EditableZoneEditor";
+import { redirect } from "next/navigation";
 
 export default function TeacherEditableZonePage() {
-  return <EditableZoneEditor />;
+  redirect("/teacher/site-image");
 }
