@@ -5816,6 +5816,546 @@ textarea:focus-visible {
   cursor: grabbing;
 }
 
+/* Sample middle-school 3D landscape studio */
+.sample-school-studio {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  height: calc(100dvh - 152px);
+  min-height: 650px;
+  overflow: hidden;
+  border-top: 1px solid #d8ded8;
+  background: #e8ede8;
+}
+
+.sample-materials {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+  padding: 1rem;
+  overflow-y: auto;
+  border-right: 1px solid #d9ddd6;
+  background: #f6f5ef;
+}
+
+.sample-materials header {
+  display: grid;
+  gap: 0.18rem;
+  margin-bottom: 1rem;
+}
+
+.sample-materials header span,
+.sample-school-toolbar__title small {
+  color: #59806a;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.sample-materials header strong {
+  color: #13291e;
+  font-family: var(--font-serif), sans-serif;
+  font-size: 1.35rem;
+}
+
+.sample-materials header p {
+  margin: 0.12rem 0 0;
+  color: #6f7b73;
+  font-size: 0.72rem;
+}
+
+.sample-materials__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.sample-materials__grid > button {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  min-height: 102px;
+  padding: 0.45rem;
+  border: 1px solid #e1e3dc;
+  border-radius: 9px;
+  color: #23382d;
+  background: #fff;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 900;
+  cursor: grab;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.sample-materials__grid > button:hover,
+.sample-materials__grid > button.is-active {
+  border-color: #2d6c4c;
+  box-shadow: 0 7px 18px rgba(39, 78, 55, 0.13);
+  transform: translateY(-2px);
+}
+
+.sample-materials__grid > button.is-active {
+  color: #fff;
+  background: #285d43;
+}
+
+.sample-material-thumb {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 68px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #eef1e9;
+}
+
+.sample-material-thumb img {
+  object-fit: contain;
+}
+
+.sample-school-workspace {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+  background: #e5ebe6;
+}
+
+.sample-school-toolbar {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) auto minmax(140px, 1fr);
+  align-items: center;
+  gap: 1rem;
+  min-height: 72px;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #d9ded8;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.sample-school-toolbar__title,
+.sample-school-toolbar__status {
+  display: grid;
+  gap: 0.14rem;
+}
+
+.sample-school-toolbar__title strong {
+  color: #152a20;
+  font-family: var(--font-serif), sans-serif;
+  font-size: 1rem;
+}
+
+.sample-school-toolbar__status {
+  justify-items: end;
+  color: #233b2e;
+  font-size: 0.7rem;
+}
+
+.sample-school-toolbar__status span {
+  color: #527760;
+  font-size: 0.6rem;
+  font-weight: 900;
+}
+
+.sample-camera-tabs {
+  display: flex;
+  padding: 0.24rem;
+  border: 1px solid #d7ded8;
+  border-radius: 999px;
+  background: #f0f3ef;
+}
+
+.sample-camera-tabs button {
+  min-height: 38px;
+  padding: 0 0.95rem;
+  border: 0;
+  border-radius: 999px;
+  color: #667168;
+  background: transparent;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.sample-camera-tabs button.is-active {
+  color: #fff;
+  background: #245b41;
+  box-shadow: 0 4px 12px rgba(29, 72, 49, 0.2);
+}
+
+.sample-school-canvas {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #dce8e5;
+}
+
+.sample-school-scene,
+.sample-school-scene canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.sample-school-scene__error {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: #70463f;
+  background: #f5eee9;
+  font-weight: 800;
+}
+
+.sample-school-canvas__badge {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  display: grid;
+  gap: 0.12rem;
+  min-width: 132px;
+  padding: 0.68rem 0.78rem;
+  border-left: 3px solid #79a33d;
+  color: #fff;
+  background: rgba(22, 45, 33, 0.84);
+  backdrop-filter: blur(7px);
+  pointer-events: none;
+}
+
+.sample-school-canvas__badge strong {
+  font-size: 0.72rem;
+}
+
+.sample-school-canvas__badge span {
+  color: #dbe5de;
+  font-size: 0.58rem;
+}
+
+.sample-school-notice {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  max-width: 360px;
+  margin: 0;
+  padding: 0.65rem 0.85rem;
+  border-radius: 6px;
+  color: #fff;
+  background: rgba(31, 52, 40, 0.84);
+  font-size: 0.68rem;
+  font-weight: 800;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.sample-school-footer {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.8rem;
+  min-height: 78px;
+  padding: 0.65rem 1rem;
+  border-top: 1px solid #d8ddd7;
+  background: #fbfbf8;
+}
+
+.sample-selected-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.sample-selected-tools > p {
+  display: grid;
+  gap: 0.12rem;
+  margin: 0;
+  color: #1d3428;
+  font-size: 0.72rem;
+}
+
+.sample-selected-tools > p span {
+  color: #6d7971;
+  font-size: 0.62rem;
+}
+
+.sample-selected-tools__name {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 136px;
+  padding-right: 0.5rem;
+  border-right: 1px solid #dfe3dd;
+}
+
+.sample-selected-tools__name .sample-material-thumb {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+}
+
+.sample-selected-tools__name > span {
+  display: grid;
+  gap: 0.05rem;
+  font-size: 0.68rem;
+}
+
+.sample-selected-tools__name small {
+  color: #6d7a71;
+  font-size: 0.55rem;
+}
+
+.sample-selected-tools > button {
+  min-width: 58px;
+  min-height: 38px;
+  border: 1px solid #d6ddd7;
+  border-radius: 5px;
+  color: #264233;
+  background: #fff;
+  font: inherit;
+  font-size: 0.65rem;
+  font-weight: 900;
+}
+
+.sample-selected-tools > button.is-danger {
+  color: #a14535;
+  border-color: #e5c6bd;
+}
+
+.sample-school-complete {
+  min-width: 126px;
+  min-height: 50px;
+  padding: 0.5rem 1rem;
+  border: 0;
+  border-radius: 6px;
+  color: #fff;
+  background: #20583d;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.sample-school-complete span {
+  display: block;
+  margin-top: 0.08rem;
+  color: #d8e6dc;
+  font-size: 0.52rem;
+}
+
+.sample-school-complete:disabled {
+  color: #869189;
+  background: #e3e8e3;
+}
+
+.teacher-sample-campus {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.2rem;
+  min-height: 220px;
+  padding: 1.5rem;
+  border: 1px solid #dbe2dc;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #edf3ed, #f8f6ed);
+}
+
+.teacher-sample-campus__mark {
+  position: relative;
+  width: 150px;
+  height: 112px;
+  transform: rotateX(58deg) rotateZ(-28deg);
+  transform-style: preserve-3d;
+}
+
+.teacher-sample-campus__mark span {
+  position: absolute;
+  display: block;
+  border: 2px solid #315a46;
+  background: #d7cbb4;
+  box-shadow: 9px 10px 0 #6d786f;
+}
+
+.teacher-sample-campus__mark span:nth-child(1) { inset: 8px 12px auto 2px; height: 26px; }
+.teacher-sample-campus__mark span:nth-child(2) { top: 34px; left: 2px; width: 27px; height: 62px; }
+.teacher-sample-campus__mark span:nth-child(3) { right: 7px; bottom: 10px; width: 54px; height: 34px; background: #718f5d; }
+
+.teacher-sample-campus > div:nth-child(2) {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.teacher-sample-campus small {
+  color: #5d7d68;
+  font-size: 0.65rem;
+  font-weight: 900;
+}
+
+.teacher-sample-campus strong {
+  color: #183326;
+  font-family: var(--font-serif), sans-serif;
+  font-size: 1.4rem;
+}
+
+.teacher-sample-campus p {
+  margin: 0;
+  color: #637068;
+  font-size: 0.72rem;
+}
+
+.teacher-sample-campus ul {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.teacher-sample-campus li {
+  padding: 0.42rem 0.6rem;
+  border: 1px solid #d7dfd7;
+  border-radius: 999px;
+  color: #315a46;
+  background: rgba(255, 255, 255, 0.74);
+  font-size: 0.62rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+@media (max-width: 940px) {
+  .sample-school-studio {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: calc(100dvh - 140px);
+    min-height: 720px;
+  }
+
+  .sample-materials {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 1rem;
+    padding: 0.65rem;
+    overflow: hidden;
+    border-right: 0;
+    border-bottom: 1px solid #d9ddd6;
+  }
+
+  .sample-materials header {
+    margin: 0;
+  }
+
+  .sample-materials header span,
+  .sample-materials header p {
+    display: none;
+  }
+
+  .sample-materials header strong {
+    font-size: 0.82rem;
+    white-space: nowrap;
+  }
+
+  .sample-materials__grid {
+    display: flex;
+    gap: 0.45rem;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .sample-materials__grid > button {
+    flex: 0 0 76px;
+    min-height: 78px;
+    padding: 0.32rem;
+    font-size: 0.58rem;
+  }
+
+  .sample-material-thumb {
+    height: 48px;
+  }
+
+  .sample-school-toolbar {
+    min-height: 62px;
+  }
+}
+
+@media (max-width: 640px) {
+  .sample-school-studio {
+    height: auto;
+    min-height: calc(100dvh - 130px);
+    overflow: visible;
+  }
+
+  .sample-school-workspace {
+    grid-template-rows: auto 60dvh auto;
+  }
+
+  .sample-school-toolbar {
+    grid-template-columns: 1fr auto;
+    gap: 0.55rem;
+    padding: 0.55rem 0.65rem;
+  }
+
+  .sample-school-toolbar__status {
+    display: none;
+  }
+
+  .sample-camera-tabs button {
+    min-height: 34px;
+    padding: 0 0.62rem;
+    font-size: 0.58rem;
+  }
+
+  .sample-school-canvas__badge {
+    top: 0.65rem;
+    left: 0.65rem;
+  }
+
+  .sample-school-notice {
+    right: 0.65rem;
+    bottom: 0.65rem;
+    left: 0.65rem;
+    max-width: none;
+  }
+
+  .sample-school-footer {
+    grid-template-columns: 1fr;
+    padding: 0.6rem;
+  }
+
+  .sample-selected-tools {
+    overflow-x: auto;
+  }
+
+  .sample-selected-tools__name {
+    min-width: 112px;
+  }
+
+  .sample-selected-tools > button {
+    flex: 0 0 54px;
+  }
+
+  .sample-school-complete {
+    width: 100%;
+  }
+
+  .teacher-sample-campus {
+    grid-template-columns: 1fr;
+  }
+
+  .teacher-sample-campus__mark {
+    width: 120px;
+    height: 90px;
+  }
+
+  .teacher-sample-campus ul {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 .webgl-site-scene {
   position: absolute;
   z-index: 2;

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { AutoSiteBackgroundPreview } from "@/components/teacher/AutoSiteBackgroundPreview";
 import { DEMO_PROJECT, DEMO_STUDENTS } from "@/data/demo-project";
 import {
   LANDSCAPE_STAGE_LABELS,
@@ -13,12 +12,8 @@ import { generateClassCode } from "@/lib/class-code";
 import {
   parseStoredProject,
   parseStoredMiniGardenKits,
-  parseStoredSiteImage,
-  parseStoredAutoSiteBackground,
-  AUTO_SITE_BACKGROUND_META_STORAGE_KEY,
   MINI_GARDEN_KITS_STORAGE_KEY,
   PROJECT_STORAGE_KEY,
-  SITE_IMAGE_META_STORAGE_KEY,
 } from "@/lib/project-store";
 import {
   useBrowserStorageValue,
@@ -45,17 +40,10 @@ export function TeacherDashboard() {
     mission: DEMO_PROJECT.mission,
   });
   const storedProject = useBrowserStorageValue("local", PROJECT_STORAGE_KEY);
-  const storedSiteImage = useBrowserStorageValue("local", SITE_IMAGE_META_STORAGE_KEY);
-  const storedAutoBackground = useBrowserStorageValue("local", AUTO_SITE_BACKGROUND_META_STORAGE_KEY);
   const storedMiniGardenKits = useBrowserStorageValue("local", MINI_GARDEN_KITS_STORAGE_KEY);
   const project = useMemo(() => parseStoredProject(storedProject), [storedProject]);
-  const siteImage = useMemo(() => parseStoredSiteImage(storedSiteImage), [storedSiteImage]);
-  const autoBackground = useMemo(() => parseStoredAutoSiteBackground(storedAutoBackground), [storedAutoBackground]);
   const miniGardenKits = useMemo(() => parseStoredMiniGardenKits(storedMiniGardenKits), [storedMiniGardenKits]);
-
-  const setupProgress = useMemo(() => {
-    return project.siteImageId && autoBackground?.siteImageId === project.siteImageId ? 100 : 0;
-  }, [autoBackground, project.siteImageId]);
+  const setupProgress = 100;
 
   function saveProject() {
     const next: SchoolProject = {
@@ -168,7 +156,7 @@ export function TeacherDashboard() {
         </div>
 
         {tab === "setup" ? (
-          <SetupPanel project={project} siteImage={siteImage} autoBackground={autoBackground} miniGardenKits={miniGardenKits} onStart={startClass} />
+          <SetupPanel project={project} miniGardenKits={miniGardenKits} onStart={startClass} />
         ) : null}
         {tab === "students" ? <StudentsPanel /> : null}
         {tab === "gallery" ? <GalleryPanel /> : null}
@@ -225,7 +213,7 @@ export function TeacherDashboard() {
             </div>
 
             <div className="drawer-note">
-              학교 사진 한 장이면 항공 배치, 예상 도면, 360° 예상전경을 함께 사용할 수 있습니다.
+              모든 학생은 같은 3D 샘플 중학교에서 조경을 시작합니다.
             </div>
             <div className="drawer-actions">
               <button className="button button--quiet" type="button" onClick={() => setEditorOpen(false)}>
@@ -249,40 +237,31 @@ export function TeacherDashboard() {
 
 function SetupPanel({
   project,
-  siteImage,
-  autoBackground,
   miniGardenKits,
   onStart,
 }: {
   project: SchoolProject;
-  siteImage: ReturnType<typeof parseStoredSiteImage>;
-  autoBackground: ReturnType<typeof parseStoredAutoSiteBackground>;
   miniGardenKits: ReturnType<typeof parseStoredMiniGardenKits>;
   onStart: () => void;
 }) {
-  const hasPhoto = Boolean(project.siteImageId && siteImage?.id === project.siteImageId);
-  const hasBackground = Boolean(autoBackground?.siteImageId === project.siteImageId);
   const hasKit = Boolean(project.miniGardenKitId && miniGardenKits.some((kit) => kit.id === project.miniGardenKitId));
 
   return (
     <section className="dashboard-content dashboard-content--setup">
       <div className="teacher-simple-setup">
         <header>
-          <div><h2>학교 공간 준비</h2><p>{hasPhoto && hasBackground ? "항공 배치와 예상 보기가 준비되었습니다." : "학교 사진 한 장이면 충분합니다."}</p></div>
-          <span className={hasPhoto && hasBackground ? "is-ready" : ""}>{hasPhoto && hasBackground ? "준비됨" : "준비 전"}</span>
+          <div><h2>3D 학교 준비</h2><p>샘플 중학교 캠퍼스와 조경 재료가 준비되었습니다.</p></div>
+          <span className="is-ready">준비됨</span>
         </header>
-        <div className="teacher-simple-photo">
-        {autoBackground && hasBackground && siteImage ? (
-          <AutoSiteBackgroundPreview image={siteImage} compact />
-        ) : (
-          <div className="teacher-simple-photo__empty"><strong>학교 사진</strong><span>항공사진이나 배치 이미지를 넣어주세요.</span></div>
-        )}
+        <div className="teacher-sample-campus">
+          <div className="teacher-sample-campus__mark"><span /><span /><span /></div>
+          <div><small>기본 실습 공간</small><strong>푸른솔중학교 3D 캠퍼스</strong><p>본관 · 별관 · 운동장 · 중앙정원 · 보행로</p></div>
+          <ul><li>항공샷</li><li>360° 입체</li><li>학생 시점</li></ul>
         </div>
         <div className="teacher-simple-actions">
-          <Link className="button button--quiet" href="/teacher/site-image">{hasPhoto ? "사진 바꾸기" : "학교 사진 올리기"}</Link>
-          <button className="button button--primary" type="button" disabled={!hasPhoto || !hasBackground} onClick={onStart}>수업 시작</button>
+          <Link className="button button--quiet" href="/teacher/mini-garden-kit">{hasKit ? "오늘의 재료 바꾸기" : "오늘의 재료 준비"}</Link>
+          <button className="button button--primary" type="button" onClick={onStart}>수업 시작</button>
         </div>
-        {hasPhoto && hasBackground ? <Link className="teacher-kit-link" href="/teacher/mini-garden-kit">{hasKit ? "오늘의 재료 바꾸기" : "오늘의 재료 준비"}</Link> : null}
         <p className="teacher-simple-mission"><strong>오늘의 의뢰</strong><span>{project.mission}</span></p>
       </div>
     </section>

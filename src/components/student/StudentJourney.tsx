@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { LandscapeDesignStudio } from "@/components/student/LandscapeDesignStudio";
-import { Landscape3DPreview } from "@/components/student/Landscape3DPreview";
+import { SampleSchool3DStudio } from "@/components/student/SampleSchool3DStudio";
 import { LandscapeIntentionForm } from "@/components/student/LandscapeIntentionForm";
 import { ClassLandscapeGallery } from "@/components/student/ClassLandscapeGallery";
 import { MiniGardenPotStudio } from "@/components/student/MiniGardenPotStudio";
@@ -33,7 +32,7 @@ export function StudentJourney({ sessionId }: { sessionId: string }) {
     },
     project: DEMO_PROJECT,
   }), [sessionId]);
-  const [view, setView] = useState<"design" | "preview3d" | "intention" | "gallery" | "miniPot" | "sandLayers" | "objectPlacement" | "makingPlan" | "finalComparison">("design");
+  const [view, setView] = useState<"design" | "intention" | "gallery" | "miniPot" | "sandLayers" | "objectPlacement" | "makingPlan" | "finalComparison">("design");
   const studentStorageKey = getStudentSessionStorageKey(sessionId);
   const sessionContext = useBrowserStorageValue(
     "session",
@@ -87,19 +86,10 @@ export function StudentJourney({ sessionId }: { sessionId: string }) {
       </div>
 
       {view === "design" ? (
-        <LandscapeDesignStudio
+        <SampleSchool3DStudio
           project={context.project}
           nickname={context.session.nickname}
           sessionId={context.session.id}
-          onPreview3D={() => setView("preview3d")}
-          onContinue={() => setView("intention")}
-        />
-      ) : view === "preview3d" ? (
-        <Landscape3DPreview
-          project={context.project}
-          nickname={context.session.nickname}
-          sessionId={context.session.id}
-          onBack={() => setView("design")}
           onContinue={() => setView("intention")}
         />
       ) : view === "intention" ? (
@@ -108,7 +98,7 @@ export function StudentJourney({ sessionId }: { sessionId: string }) {
           nickname={context.session.nickname}
           sessionId={context.session.id}
           onBack={() => setView("design")}
-          onPreview3D={() => setView("preview3d")}
+          onPreview3D={() => setView("design")}
           onSubmitted={() => setView("gallery")}
         />
       ) : view === "gallery" ? (

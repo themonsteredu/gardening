@@ -46,9 +46,9 @@ export const DEMO_STUDENTS: StudentSession[] = [
 export const PROJECT_FLOW = [
   {
     part: "PART 1",
-    title: "우리 학교 실제 공간 조경설계",
-    description: "실제 학교 사진 위에 조경 재료를 바로 배치합니다.",
-    steps: ["학교 사진 꾸미기", "설계 의도 기록", "친구 작품 비교"],
+    title: "3D 중학교 조경설계",
+    description: "입체 학교를 둘러보며 실제 모습의 조경 재료를 배치합니다.",
+    steps: ["3D 학교 꾸미기", "항공·학생 시점 확인", "친구 작품 비교"],
   },
   {
     part: "PART 2",

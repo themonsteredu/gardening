@@ -115,6 +115,7 @@ export interface StudentLandscapeDesign {
   id: string;
   studentSessionId: string;
   schoolProjectId: string;
+  sceneVersion?: "photo-plan-v1" | "sample-middle-school-v1";
   objects: LandscapeObject[];
   intentionKeyword: string | null;
   intentionReason: string | null;

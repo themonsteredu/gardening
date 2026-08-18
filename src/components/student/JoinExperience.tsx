@@ -68,6 +68,7 @@ export function JoinExperience() {
       id: `landscape-design-${sessionId}`,
       studentSessionId: sessionId,
       schoolProjectId: activeProject.id,
+      sceneVersion: "sample-middle-school-v1",
       objects: [],
       intentionKeyword: null,
       intentionReason: null,
@@ -90,11 +91,11 @@ export function JoinExperience() {
           <h1>
             오늘부터 나는
             <br />
-            <em>학교 조경 설계자</em>입니다.
+            <em>3D 학교 조경 설계자</em>입니다.
           </h1>
           <p>
-            선생님이 준비한 실제 학교 공간을 살펴보고,
-            나만의 목적과 이유가 담긴 조경 설계안을 만듭니다.
+            샘플 중학교를 항공과 학생 시점으로 둘러보고,
+            실제 모습의 조경 재료를 직접 배치합니다.
           </p>
           <PlanPreview variant="student" />
           <div className="join-principle">
