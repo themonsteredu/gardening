@@ -77,16 +77,12 @@ export function simplifyImagePixels(
       const index = y * width + x;
       const pixel = index * 4;
       const lum = luminance[index];
-      const right = luminance[y * width + Math.min(width - 1, x + 1)];
-      const below = luminance[Math.min(height - 1, y + 1) * width + x];
-      const edge = Math.min(34, (Math.abs(lum - right) + Math.abs(lum - below)) * 0.58);
       const inUiBand = y < bands.top || y >= height - bands.bottom;
-      const sourceMix = inUiBand ? 0.05 : 0.2;
-      const base = Math.max(0, Math.min(255, 224 + (lum - 128) * 0.34 + brightnessOffset - edge));
-      const quantize = inUiBand ? 16 : 12;
-      pixels[pixel] = Math.round((base * (1 - sourceMix) + pixels[pixel] * sourceMix) / quantize) * quantize;
-      pixels[pixel + 1] = Math.round((base * (1 - sourceMix) + pixels[pixel + 1] * sourceMix) / quantize) * quantize;
-      pixels[pixel + 2] = Math.round((base * (1 - sourceMix) + pixels[pixel + 2] * sourceMix) / quantize) * quantize;
+      const photoMix = inUiBand ? 0.42 : 0.64;
+      const lightTone = Math.max(0, Math.min(255, 214 + (lum - 128) * 0.5 + brightnessOffset));
+      pixels[pixel] = lightTone * (1 - photoMix) + pixels[pixel] * photoMix;
+      pixels[pixel + 1] = lightTone * (1 - photoMix) + pixels[pixel + 1] * photoMix;
+      pixels[pixel + 2] = lightTone * (1 - photoMix) + pixels[pixel + 2] * photoMix;
     }
   }
   return bands;

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { CSSProperties } from "react";
 import { findLandscapeMaterial } from "@/data/landscape-materials";
 import type { LandscapeObject } from "@/domain/models";
@@ -21,27 +22,27 @@ export function LandscapeDesignPreview({
         </div>
         {objects.slice(0, 18).map((object) => {
           const material = findLandscapeMaterial(object.materialId);
-          if (!material) return null;
-          const size = Math.max(16, Math.min(40, 24 * object.scale));
+          if (!material?.planAssetUrl) return null;
+          const width = Math.max(22, Math.min(58, (material.planWidth ?? 76) * 0.46 * object.scale));
+          const height = Math.max(18, Math.min(58, (material.planHeight ?? 76) * 0.46 * object.scale));
           return (
             <span
               key={object.id}
-              className={`gallery-preview-object gallery-preview-object--${object.category} material-shape--${material.shape}`}
+              className={`gallery-preview-object gallery-preview-object--${object.category} gallery-preview-object--${material.id}`}
               title={material.name}
               style={{
                 left: `${object.x * 100}%`,
                 top: `${object.y * 100}%`,
-                width: size,
-                height: size,
+                width,
+                height,
                 zIndex: object.zIndex + 2,
                 transform: `translate(-50%, -50%) rotate(${object.rotation}deg)`,
-                "--object-color": material.color,
               } as CSSProperties}
-            ><i /></span>
+            ><Image src={material.planAssetUrl} alt="" fill sizes="60px" unoptimized /></span>
           );
         })}
       </div>
-      <span className="gallery-preview-label">{variant === "plan" ? "배치도" : "3D"}</span>
+      <span className="gallery-preview-label">{variant === "plan" ? "배치" : "입체 보기"}</span>
     </div>
   );
 }

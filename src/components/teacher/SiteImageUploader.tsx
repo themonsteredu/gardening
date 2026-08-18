@@ -15,7 +15,7 @@ import {
   SITE_IMAGE_META_STORAGE_KEY,
 } from "@/lib/project-store";
 import { resolveSiteImageMimeType, SITE_IMAGE_ACCEPT, validateSiteImageCandidate } from "@/lib/site-image";
-import { deleteSiteImageFile, getSiteImageFile, saveSiteImageFile } from "@/lib/site-image-store";
+import { deleteSiteImageFile, saveSiteImageFile } from "@/lib/site-image-store";
 import { removeBrowserStorage, useBrowserStorageValue, writeBrowserStorage } from "@/lib/use-browser-storage";
 
 type ProcessState = "idle" | "processing" | "ready";
@@ -23,7 +23,6 @@ type ProcessState = "idle" | "processing" | "ready";
 export function SiteImageUploader() {
   const [state, setState] = useState<ProcessState>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [showAdjust, setShowAdjust] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const projectValue = useBrowserStorageValue("local", PROJECT_STORAGE_KEY);
   const imageValue = useBrowserStorageValue("local", SITE_IMAGE_META_STORAGE_KEY);
@@ -82,23 +81,6 @@ export function SiteImageUploader() {
     }
   }
 
-  async function adjustBackground(adjustment: number) {
-    if (!activeImage || !activeBackground || state === "processing") return;
-    setState("processing");
-    setError(null);
-    try {
-      const source = await getSiteImageFile(activeImage.storageKey);
-      if (!source) throw new Error("missing source");
-      const nextBackground = await buildBackground(source, activeImage.id, activeImage.mimeType, adjustment);
-      writeBrowserStorage("local", AUTO_SITE_BACKGROUND_META_STORAGE_KEY, JSON.stringify(nextBackground));
-      if (activeBackground.storageKey !== activeImage.storageKey && activeBackground.storageKey !== nextBackground.storageKey) await deleteSiteImageFile(activeBackground.storageKey).catch(() => undefined);
-      setState("ready");
-    } catch {
-      setState("ready");
-      setError("설계도 밝기를 바꾸지 못했습니다.");
-    }
-  }
-
   function startClass() {
     writeBrowserStorage("local", PROJECT_STORAGE_KEY, JSON.stringify({ ...project, status: "open" }));
   }
@@ -118,16 +100,14 @@ export function SiteImageUploader() {
             </>
           ) : null}
           {state === "processing" ? <div className="site-auto-processing" role="status"><span aria-hidden="true" /><h1>학교 공간을 준비하고 있어요</h1></div> : null}
-          {ready && state !== "processing" && activeBackground ? (
+          {ready && state !== "processing" && activeBackground && activeImage ? (
             <>
               <header className="site-auto-ready-heading"><p className="eyebrow">준비 완료</p><h1>학교 공간 준비 완료</h1></header>
-              <AutoSiteBackgroundPreview background={activeBackground} />
+              <AutoSiteBackgroundPreview image={activeImage} />
               <div className="site-auto-actions">
                 <label className="button button--quiet" htmlFor="site-photo-input">사진 바꾸기</label>
                 <Link className="button button--primary" href="/teacher" onClick={startClass}>수업 시작</Link>
               </div>
-              <button className="site-auto-adjust-toggle" type="button" onClick={() => setShowAdjust((current) => !current)}>간단히 수정</button>
-              {showAdjust ? <div className="site-auto-adjustments"><button type="button" onClick={() => void adjustBackground(-12)}>조금 진하게</button><button type="button" onClick={() => void adjustBackground(12)}>더 밝게</button><button type="button" onClick={() => void adjustBackground(0)}>초기화</button></div> : null}
             </>
           ) : null}
           <input id="site-photo-input" className="visually-hidden" type="file" accept={SITE_IMAGE_ACCEPT} aria-label="학교 사진 선택" onChange={(event) => { const file = event.target.files?.[0]; if (file) void processFile(file); event.target.value = ""; }} />

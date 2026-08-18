@@ -8,9 +8,11 @@ export interface LandscapeSceneObject {
   category: LandscapeMaterialCategory;
   shape: PlanLandscapeMaterial["shape"];
   color: string;
+  assetUrl: string | null;
   xPercent: number;
   yPercent: number;
-  sizePixels: number;
+  footprintWidthPixels: number;
+  footprintHeightPixels: number;
   heightPixels: number;
   rotationDegrees: number;
   zIndex: number;
@@ -26,7 +28,7 @@ function getSceneHeight(object: LandscapeObject): number {
 export function convertLandscapeObjectToScene(object: LandscapeObject): LandscapeSceneObject | null {
   const material = findLandscapeMaterial(object.materialId);
   if (!material) return null;
-  const size = Math.sqrt(object.width * object.height) * 15 * object.scale;
+  const fallbackSize = Math.max(18, Math.min(76, Math.sqrt(object.width * object.height) * 15 * object.scale));
   return {
     id: object.id,
     materialId: object.materialId,
@@ -34,9 +36,11 @@ export function convertLandscapeObjectToScene(object: LandscapeObject): Landscap
     category: object.category,
     shape: material.shape,
     color: material.color,
+    assetUrl: material.planAssetUrl,
     xPercent: object.x * 100,
     yPercent: object.y * 100,
-    sizePixels: Math.max(18, Math.min(76, size)),
+    footprintWidthPixels: material.planWidth ? Math.max(20, Math.min(96, material.planWidth * 0.68 * object.scale)) : fallbackSize,
+    footprintHeightPixels: material.planHeight ? Math.max(18, Math.min(96, material.planHeight * 0.68 * object.scale)) : fallbackSize,
     heightPixels: getSceneHeight(object),
     rotationDegrees: object.rotation,
     zIndex: object.zIndex,

@@ -142,7 +142,9 @@
 }
 
 .student-design-studio .student-background-toggle button.is-active { background: #fff; color: #295e3a; box-shadow: 0 1px 5px rgb(34 57 41 / 12%); }
-.student-plan-stage > .is-auto-plan-fallback { filter: saturate(.24) brightness(1.14) contrast(.82); }
+.student-plan-stage > .is-technical-plan {
+  filter: saturate(.48) brightness(1.14) contrast(.82);
+}
 
 @media (max-width: 760px) {
   .site-auto-main { width: min(100% - 20px, 1040px); padding-top: 18px; }
@@ -4842,78 +4844,33 @@ textarea:focus-visible {
   font-size: 0.52rem;
 }
 
-.material-symbol {
-  --object-color: #58845b;
+.material-photo {
   position: relative;
-  display: grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-}
-
-.material-symbol::before,
-.material-symbol::after,
-.material-symbol i,
-.landscape-object > span,
-.landscape-object > span::before,
-.landscape-object > span::after {
-  content: "";
   display: block;
+  width: 74px;
+  height: 74px;
 }
 
-.material-shape--circle::before,
-.material-shape--circle > span {
-  width: 74%;
-  height: 74%;
-  border: 3px double rgba(255, 255, 255, 0.75);
-  border-radius: 50%;
-  background: var(--object-color);
-  box-shadow: 0 0 0 2px var(--object-color);
+.material-photo img {
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
 }
 
-.material-shape--conifer::before,
-.material-shape--conifer > span {
-  width: 0;
-  height: 0;
-  border-right: 17px solid transparent;
-  border-bottom: 34px solid var(--object-color);
-  border-left: 17px solid transparent;
-  filter: drop-shadow(0 0 1px #fff);
+.material-photo--placed {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 4px 5px rgb(23 45 30 / 24%));
 }
 
-.material-shape--cluster::before,
-.material-shape--cluster > span {
-  width: 28px;
-  height: 28px;
-  border: 2px solid rgba(255, 255, 255, 0.7);
-  border-radius: 46% 54% 60% 40%;
-  background: var(--object-color);
-  box-shadow: 9px 4px 0 -3px var(--object-color), -7px 7px 0 -4px var(--object-color);
+.landscape-object--flower-bed .material-photo img,
+.gallery-preview-object--flower-bed img {
+  clip-path: ellipse(47% 42% at 50% 50%);
 }
 
-.material-shape--line::before,
-.material-shape--line > span {
-  width: 86%;
-  height: 24%;
-  border: 2px solid rgba(255, 255, 255, 0.68);
-  background: repeating-linear-gradient(90deg, var(--object-color) 0 7px, color-mix(in srgb, var(--object-color), white 24%) 7px 10px);
-}
-
-.material-shape--rect::before,
-.material-shape--rect > span {
-  width: 78%;
-  height: 55%;
-  border: 3px double rgba(255, 255, 255, 0.72);
-  background: var(--object-color);
-}
-
-.material-shape--organic::before,
-.material-shape--organic > span {
-  width: 82%;
-  height: 64%;
-  border: 2px dashed rgba(255, 255, 255, 0.78);
-  border-radius: 58% 42% 52% 48%;
-  background: var(--object-color);
+.selected-material-summary .material-photo {
+  width: 54px;
+  height: 54px;
 }
 
 .student-plan-workspace {
@@ -5017,6 +4974,158 @@ textarea:focus-visible {
   inset: 0;
 }
 
+.student-plan-stage.is-plan-view {
+  background: #ecebe2;
+  box-shadow: inset 0 0 0 6px rgb(255 255 255 / 58%);
+}
+
+.approximate-plan-overlay {
+  position: absolute;
+  z-index: 500;
+  inset: 0;
+  color: #183b2a;
+  font-family: Arial, sans-serif;
+  pointer-events: none;
+}
+
+.approximate-plan-title,
+.approximate-plan-schedule,
+.approximate-plan-disclaimer,
+.approximate-plan-north {
+  position: absolute;
+  border: 1px solid rgb(24 59 42 / 52%);
+  background: rgb(251 251 244 / 91%);
+  box-shadow: 0 3px 12px rgb(26 48 34 / 12%);
+}
+
+.approximate-plan-title {
+  bottom: 14px;
+  left: 14px;
+  width: min(230px, 40%);
+  padding: 9px 11px;
+  border-left-width: 4px;
+}
+
+.approximate-plan-title span,
+.approximate-plan-title strong,
+.approximate-plan-title small {
+  display: block;
+}
+
+.approximate-plan-title span {
+  color: #617166;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .13em;
+}
+
+.approximate-plan-title strong {
+  margin-top: 3px;
+  font-size: 13px;
+}
+
+.approximate-plan-title small {
+  margin-top: 3px;
+  color: #526158;
+  font-size: 9px;
+}
+
+.approximate-plan-north {
+  top: 14px;
+  left: 14px;
+  display: grid;
+  justify-items: center;
+  width: 58px;
+  padding: 7px 5px 6px;
+}
+
+.approximate-plan-north strong {
+  font-size: 12px;
+}
+
+.approximate-plan-north i {
+  width: 0;
+  height: 0;
+  margin: 3px 0;
+  border-right: 6px solid transparent;
+  border-bottom: 23px solid #1d4832;
+  border-left: 6px solid transparent;
+}
+
+.approximate-plan-north small {
+  color: #617166;
+  font-size: 7px;
+}
+
+.approximate-plan-schedule {
+  top: 14px;
+  right: 14px;
+  width: min(220px, 36%);
+  padding: 8px 9px;
+}
+
+.approximate-plan-schedule > strong {
+  display: block;
+  padding-bottom: 5px;
+  border-bottom: 2px solid #274d39;
+  font-size: 10px;
+}
+
+.approximate-plan-schedule table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 8px;
+}
+
+.approximate-plan-schedule th,
+.approximate-plan-schedule td {
+  padding: 3px 2px;
+  border-bottom: 1px solid rgb(39 77 57 / 18%);
+  text-align: left;
+}
+
+.approximate-plan-schedule th:first-child,
+.approximate-plan-schedule td:first-child,
+.approximate-plan-schedule th:last-child,
+.approximate-plan-schedule td:last-child {
+  width: 34px;
+}
+
+.approximate-plan-schedule th:last-child,
+.approximate-plan-schedule td:last-child {
+  text-align: right;
+}
+
+.approximate-plan-schedule p {
+  margin: 6px 0 0;
+  color: #607067;
+  font-size: 8px;
+}
+
+.approximate-plan-object-code {
+  position: absolute;
+  min-width: 22px;
+  padding: 2px 4px;
+  border: 1px solid #173f2a;
+  border-radius: 999px;
+  background: rgb(255 255 248 / 93%);
+  color: #173f2a;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+  transform: translate(12px, -24px);
+}
+
+.approximate-plan-disclaimer {
+  right: 14px;
+  bottom: 14px;
+  margin: 0;
+  padding: 5px 7px;
+  color: #53635a;
+  font-size: 8px;
+}
+
 .student-base-overlay {
   position: absolute;
   z-index: 2;
@@ -5040,7 +5149,6 @@ textarea:focus-visible {
 }
 
 .landscape-object {
-  --object-color: #58845b;
   position: absolute;
   display: grid;
   place-items: center;
@@ -5063,20 +5171,6 @@ textarea:focus-visible {
   border: 2px solid #173f2a;
   background: transparent;
   content: "";
-}
-
-.landscape-object small {
-  position: absolute;
-  top: calc(100% + 7px);
-  left: 50%;
-  padding: 0.16rem 0.3rem;
-  background: rgba(24, 47, 31, 0.82);
-  color: #fff;
-  font-size: 0.46rem;
-  font-weight: 700;
-  line-height: 1;
-  white-space: nowrap;
-  transform: translateX(-50%);
 }
 
 .student-zone-label {
@@ -5750,8 +5844,8 @@ textarea:focus-visible {
 
 .scene-plan-base > img {
   object-fit: cover;
-  opacity: 0.48;
-  filter: saturate(0.7) contrast(0.92);
+  opacity: 0.72;
+  filter: saturate(0.82) contrast(0.94) brightness(1.04);
 }
 
 .scene-plan-base > svg {
@@ -5862,6 +5956,48 @@ textarea:focus-visible {
 
 .scene-shape--cluster .scene-model::before {
   border-radius: 44% 56% 61% 39%;
+}
+
+.scene-model--photo::before,
+.scene-model--photo::after {
+  display: none;
+}
+
+.scene-model--photo img {
+  object-fit: contain;
+  filter: drop-shadow(7px 11px 5px rgb(24 39 26 / 38%));
+  pointer-events: none;
+}
+
+.scene-estimate-badge {
+  position: absolute;
+  z-index: 6;
+  top: 1rem;
+  right: 1rem;
+  padding: .52rem .65rem;
+  border-left: 3px solid #9ebc31;
+  background: rgb(255 255 255 / 88%);
+  color: #355143;
+  pointer-events: none;
+}
+
+.scene-estimate-badge strong,
+.scene-estimate-badge span {
+  display: block;
+}
+
+.scene-estimate-badge strong {
+  font-size: .62rem;
+}
+
+.scene-estimate-badge span {
+  margin-top: .18rem;
+  color: #647168;
+  font-size: .48rem;
+}
+
+.scene-model--flower-bed img {
+  clip-path: ellipse(47% 42% at 50% 50%);
 }
 
 .scene-object small {
@@ -6072,6 +6208,25 @@ textarea:focus-visible {
 }
 
 @media (max-width: 520px) {
+  .approximate-plan-title {
+    width: 48%;
+  }
+
+  .approximate-plan-schedule {
+    width: 42%;
+    max-height: 46%;
+    overflow: hidden;
+  }
+
+  .approximate-plan-disclaimer {
+    display: none;
+  }
+
+  .scene-estimate-badge {
+    top: .7rem;
+    right: .7rem;
+  }
+
   .scene-summary-panel {
     grid-template-columns: 1fr auto;
   }
@@ -6433,25 +6588,11 @@ textarea:focus-visible {
   position: absolute;
   z-index: 3;
   display: block;
-  border: 2px solid rgba(255, 255, 255, 0.8);
-  background: var(--object-color);
-  box-shadow: 3px 4px 0 color-mix(in srgb, var(--object-color), black 22%);
+  filter: drop-shadow(2px 3px 3px rgb(26 48 31 / 24%));
 }
 
-.gallery-preview-object--planting {
-  border-radius: 50%;
-}
-
-.gallery-preview-object--planting i {
-  position: absolute;
-  inset: 24%;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--object-color), white 25%);
-}
-
-.gallery-preview-object--paving {
-  border-style: dashed;
-  opacity: 0.82;
+.gallery-preview-object img {
+  object-fit: contain;
 }
 
 .gallery-preview-label {
@@ -6482,7 +6623,7 @@ textarea:focus-visible {
 }
 
 .gallery-design-preview--spatial .gallery-preview-object {
-  box-shadow: 5px 7px 0 color-mix(in srgb, var(--object-color), black 27%), 8px 10px 9px rgba(38, 51, 39, 0.28);
+  filter: drop-shadow(6px 8px 5px rgb(38 51 39 / 32%));
 }
 
 .gallery-principle {

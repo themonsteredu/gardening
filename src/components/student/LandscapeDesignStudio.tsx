@@ -13,7 +13,6 @@ import type {
   Point2D,
   SchoolProject,
   SiteImage,
-  AutoSiteBackground,
   StudentLandscapeDesign,
 } from "@/domain/models";
 import {
@@ -32,8 +31,12 @@ import {
 } from "@/lib/project-store";
 import { getSiteImageFile } from "@/lib/site-image-store";
 import { useBrowserStorageValue, writeBrowserStorage } from "@/lib/use-browser-storage";
+import { LandscapePlanOverlay } from "@/components/student/LandscapePlanOverlay";
 
 const PRIMARY_MATERIAL_IDS = ["tree-canopy", "pine", "flower", "lawn", "bench", "rock", "dirt-path", "flower-bed"];
+const PRIMARY_MATERIALS = LANDSCAPE_MATERIALS.filter(
+  (material) => PRIMARY_MATERIAL_IDS.includes(material.id) && material.planAssetUrl,
+);
 
 export function LandscapeDesignStudio({
   project,
@@ -63,7 +66,6 @@ export function LandscapeDesignStudio({
       nickname={nickname}
       sessionId={sessionId}
       siteImage={siteImage}
-      autoBackground={autoBackground}
       storedDesign={storedDesign}
       designStorageKey={designStorageKey}
       onPreview3D={onPreview3D}
@@ -77,7 +79,6 @@ function LandscapeDesignWorkspace({
   nickname,
   sessionId,
   siteImage,
-  autoBackground,
   storedDesign,
   designStorageKey,
   onPreview3D,
@@ -87,7 +88,6 @@ function LandscapeDesignWorkspace({
   nickname: string;
   sessionId: string;
   siteImage: SiteImage | null;
-  autoBackground: AutoSiteBackground | null;
   storedDesign: StudentLandscapeDesign | null;
   designStorageKey: string;
   onPreview3D: () => void;
@@ -96,15 +96,13 @@ function LandscapeDesignWorkspace({
   const stageRef = useRef<HTMLDivElement>(null);
   const movingObjectIdRef = useRef<string | null>(null);
   const hasUnsavedChangeRef = useRef(false);
-  const [showMore, setShowMore] = useState(false);
   const [activeMaterialId, setActiveMaterialId] = useState<string | null>(null);
   const [objects, setObjects] = useState<LandscapeObject[]>(() =>
     storedDesign?.schoolProjectId === project.id ? storedDesign.objects : [],
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-  const [planUrl, setPlanUrl] = useState<string | null>(null);
-  const [backgroundMode, setBackgroundMode] = useState<"photo" | "plan">("plan");
+  const [backgroundMode, setBackgroundMode] = useState<"photo" | "plan">("photo");
   const [loadError, setLoadError] = useState(false);
   const [notice, setNotice] = useState("재료를 끌어 사진 위에 놓아보세요.");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "loaded">(
@@ -112,12 +110,8 @@ function LandscapeDesignWorkspace({
   );
 
   const activeImage = siteImage?.id === project.siteImageId ? siteImage : null;
-  const activeBackground = autoBackground?.siteImageId === activeImage?.id ? autoBackground : null;
   const selectedObject = objects.find((object) => object.id === selectedId) ?? null;
   const selectedMaterial = selectedObject ? findLandscapeMaterial(selectedObject.materialId) : null;
-  const paletteMaterials = showMore
-    ? LANDSCAPE_MATERIALS
-    : LANDSCAPE_MATERIALS.filter((material) => PRIMARY_MATERIAL_IDS.includes(material.id));
   const designId = storedDesign?.id ?? `landscape-design-${sessionId}`;
 
   const persistDesign = useCallback((nextObjects: LandscapeObject[]) => {
@@ -146,24 +140,17 @@ function LandscapeDesignWorkspace({
     if (!activeImage) return;
     let alive = true;
     let photoObjectUrl: string | null = null;
-    let planObjectUrl: string | null = null;
-    Promise.all([
-      getSiteImageFile(activeImage.storageKey),
-      activeBackground ? getSiteImageFile(activeBackground.storageKey) : Promise.resolve(null),
-    ]).then(([photoBlob, planBlob]) => {
-        if (!alive || !photoBlob) { if (alive) setLoadError(true); return; }
-        photoObjectUrl = URL.createObjectURL(photoBlob);
-        planObjectUrl = URL.createObjectURL(planBlob ?? photoBlob);
-        setPhotoUrl(photoObjectUrl);
-        setPlanUrl(planObjectUrl);
-      })
+    getSiteImageFile(activeImage.storageKey).then((photoBlob) => {
+      if (!alive || !photoBlob) { if (alive) setLoadError(true); return; }
+      photoObjectUrl = URL.createObjectURL(photoBlob);
+      setPhotoUrl(photoObjectUrl);
+    })
       .catch(() => { if (alive) setLoadError(true); });
     return () => {
       alive = false;
       if (photoObjectUrl) URL.revokeObjectURL(photoObjectUrl);
-      if (planObjectUrl) URL.revokeObjectURL(planObjectUrl);
     };
-  }, [activeBackground, activeImage]);
+  }, [activeImage]);
 
   function pointFromClient(clientX: number, clientY: number): Point2D | null {
     if (!stageRef.current) return null;
@@ -269,7 +256,7 @@ function LandscapeDesignWorkspace({
           <span>사진 위에 끌어 놓으세요.</span>
         </div>
         <div className="material-grid">
-          {paletteMaterials.map((material) => (
+          {PRIMARY_MATERIALS.map((material) => (
             <button
               key={material.id}
               type="button"
@@ -285,13 +272,10 @@ function LandscapeDesignWorkspace({
                 event.dataTransfer.effectAllowed = "copy";
               }}
             >
-              <MaterialSymbol material={material} />
+              <MaterialPhoto material={material} />
               <span><strong>{material.shortLabel}</strong></span>
             </button>
           ))}
-          <button className="material-more-button" type="button" onClick={() => setShowMore((current) => !current)}>
-            <span aria-hidden="true">＋</span><strong>{showMore ? "간단히" : "더보기"}</strong>
-          </button>
         </div>
       </aside>
 
@@ -299,8 +283,8 @@ function LandscapeDesignWorkspace({
         <header className="student-plan-toolbar">
           <div><span>우리 학교를 조경해보세요</span><strong>{project.schoolName}</strong></div>
           <div className="student-background-toggle" role="group" aria-label="학교 배경 선택">
-            <button type="button" className={backgroundMode === "photo" ? "is-active" : ""} onClick={() => setBackgroundMode("photo")}>실제사진</button>
-            <button type="button" className={backgroundMode === "plan" ? "is-active" : ""} onClick={() => setBackgroundMode("plan")}>설계도</button>
+            <button type="button" className={backgroundMode === "photo" ? "is-active" : ""} onClick={() => { setBackgroundMode("photo"); setNotice("항공사진 위에서 재료를 배치합니다."); }}>항공 배치</button>
+            <button type="button" className={backgroundMode === "plan" ? "is-active" : ""} onClick={() => { setBackgroundMode("plan"); setNotice("재료 코드와 수량을 표시한 예상 도면입니다."); }}>예상 도면</button>
           </div>
           <div className="student-plan-save-summary">
             <span className={`save-state save-state--${saveState}`}>
@@ -311,7 +295,7 @@ function LandscapeDesignWorkspace({
         </header>
         <div
           ref={stageRef}
-          className={`student-plan-stage ${activeMaterialId ? "is-placing" : ""}`}
+          className={`student-plan-stage ${activeMaterialId ? "is-placing" : ""} ${backgroundMode === "plan" ? "is-plan-view" : ""}`}
           style={{ aspectRatio }}
           onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }}
           onDrop={(event) => {
@@ -329,26 +313,24 @@ function LandscapeDesignWorkspace({
         >
           {!photoUrl && !loadError ? <div className="plan-stage-message">학교 공간 불러오는 중</div> : null}
           {loadError ? <div className="plan-stage-message">학교 이미지를 불러오지 못했습니다.</div> : null}
-          {photoUrl && activeImage.mimeType === "application/pdf" ? <object className={backgroundMode === "plan" ? "is-auto-plan-fallback" : ""} data={photoUrl} type="application/pdf" title="학교 배치도 PDF" /> : null}
-          {photoUrl && activeImage.mimeType !== "application/pdf" ? <Image className={backgroundMode === "plan" && activeBackground?.method === "source-filter-fallback" ? "is-auto-plan-fallback" : ""} src={backgroundMode === "plan" ? (planUrl ?? photoUrl) : photoUrl} alt={backgroundMode === "plan" ? "자동 설계도" : "실제 학교 사진"} fill sizes="(max-width: 1000px) 100vw, 65vw" unoptimized draggable={false} /> : null}
+          {photoUrl && activeImage.mimeType === "application/pdf" ? <object className={backgroundMode === "plan" ? "is-technical-plan" : ""} data={photoUrl} type="application/pdf" title="학교 배치 이미지 PDF" /> : null}
+          {photoUrl && activeImage.mimeType !== "application/pdf" ? <Image className={backgroundMode === "plan" ? "is-technical-plan" : ""} src={photoUrl} alt={backgroundMode === "plan" ? "항공사진을 바탕으로 밝게 표시한 예상 배치도" : "실제 학교 항공사진"} fill sizes="(max-width: 1000px) 100vw, 65vw" unoptimized draggable={false} /> : null}
           {objects.map((object) => {
             const material = findLandscapeMaterial(object.materialId);
             if (!material) return null;
-            const baseSize = Math.max(30, Math.min(82, Math.sqrt(object.width * object.height) * 19));
             const style = {
               left: `${object.x * 100}%`,
               top: `${object.y * 100}%`,
               zIndex: object.zIndex + 5,
-              width: `${baseSize}px`,
-              height: `${baseSize}px`,
+              width: `${material.planWidth ?? 76}px`,
+              height: `${material.planHeight ?? 76}px`,
               transform: `translate(-50%, -50%) rotate(${object.rotation}deg) scale(${object.scale})`,
-              "--object-color": material.color,
             } as CSSProperties;
             return (
               <button
                 key={object.id}
                 type="button"
-                className={`landscape-object material-shape--${material.shape} ${selectedId === object.id ? "is-selected" : ""}`}
+                className={`landscape-object landscape-object--${material.id} ${selectedId === object.id ? "is-selected" : ""}`}
                 style={style}
                 aria-label={`${material.name} 배치 개체`}
                 onClick={(event) => { event.stopPropagation(); setSelectedId(object.id); setActiveMaterialId(null); }}
@@ -363,11 +345,11 @@ function LandscapeDesignWorkspace({
                 onPointerUp={() => { movingObjectIdRef.current = null; }}
                 onPointerCancel={() => { movingObjectIdRef.current = null; }}
               >
-                <span />
-                <small>{material.shortLabel}</small>
+                <MaterialPhoto material={material} placed />
               </button>
             );
           })}
+          {backgroundMode === "plan" ? <LandscapePlanOverlay objects={objects} schoolName={project.schoolName} /> : null}
           {objects.length === 0 ? <div className="student-zone-label">여기에 놓기</div> : null}
         </div>
         <footer className="student-plan-status">
@@ -382,7 +364,7 @@ function LandscapeDesignWorkspace({
                 onPreview3D();
               }}
             >
-              3D 미리보기 <span>{objects.length > 0 ? "설계 확인" : "재료 배치 후"}</span>
+              360° 예상전경 <span>{objects.length > 0 ? "예상 모형 보기" : "재료 배치 후"}</span>
             </button>
             <button
               className="student-complete-design-button"
@@ -402,7 +384,7 @@ function LandscapeDesignWorkspace({
       {selectedObject && selectedMaterial ? (
         <aside className="object-inspector" aria-label="선택한 재료 조작">
           <div className="inspector-controls">
-            <div className="selected-material-summary"><MaterialSymbol material={selectedMaterial} /><div><small>{LANDSCAPE_CATEGORY_LABELS[selectedMaterial.category]}</small><strong>{selectedMaterial.name}</strong></div></div>
+            <div className="selected-material-summary"><MaterialPhoto material={selectedMaterial} /><div><small>{LANDSCAPE_CATEGORY_LABELS[selectedMaterial.category]}</small><strong>{selectedMaterial.name}</strong></div></div>
             <div className="simple-object-actions">
               <button type="button" onClick={() => resizeSelected(-0.1)}>작게</button>
               <button type="button" onClick={() => resizeSelected(0.1)}>크게</button>
@@ -417,12 +399,11 @@ function LandscapeDesignWorkspace({
   );
 }
 
-function MaterialSymbol({ material }: { material: PlanLandscapeMaterial }) {
+function MaterialPhoto({ material, placed = false }: { material: PlanLandscapeMaterial; placed?: boolean }) {
+  if (!material.planAssetUrl) return null;
   return (
-    <span
-      className={`material-symbol material-shape--${material.shape}`}
-      style={{ "--object-color": material.color } as CSSProperties}
-      aria-hidden="true"
-    ><i /></span>
+    <span className={placed ? "material-photo material-photo--placed" : "material-photo"} aria-hidden="true">
+      <Image src={material.planAssetUrl} alt="" fill sizes={placed ? "160px" : "96px"} unoptimized draggable={false} />
+    </span>
   );
 }
