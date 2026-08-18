@@ -92,9 +92,9 @@ export function Landscape3DPreview({
   if (!activeImage || !design || sceneObjects.length === 0) {
     return (
       <main className="student-design-empty">
-        <p className="eyebrow">3D SITE REVIEW</p>
+        <p className="eyebrow">360° 예상전경</p>
         <h1>먼저 평면 설계를 저장해 주세요.</h1>
-        <p>배치한 재료가 하나 이상 있으면 같은 좌표를 사용해 3D 공간을 만들 수 있습니다.</p>
+        <p>배치한 재료가 하나 이상 있으면 같은 좌표를 사용해 예상 모형을 만들 수 있습니다.</p>
         <button className="button button--primary" type="button" onClick={onBack}>평면 설계로 돌아가기</button>
       </main>
     );
@@ -109,9 +109,9 @@ export function Landscape3DPreview({
       <header className="landscape-3d-heading">
         <div>
           <button type="button" onClick={onBack}>← 배치 수정</button>
-          <p className="eyebrow">STEP 07 · 3D SITE REVIEW</p>
-          <h1>나의 조경 설계 3D 확인</h1>
-          <p>평면에서 정한 위치와 방향을 그대로 입체 공간에서 확인합니다.</p>
+          <p className="eyebrow">항공사진 기반 예상 보기</p>
+          <h1>우리 학교 360° 예상전경</h1>
+          <p>평면에서 정한 위치를 그대로 옮긴 간략 예상 모형입니다.</p>
         </div>
         <div className="scene-project-meta"><span>{nickname} 설계자</span><strong>{project.title}</strong><small>저장된 재료 {sceneObjects.length}개</small></div>
       </header>
@@ -125,7 +125,7 @@ export function Landscape3DPreview({
               <div key={category}><dt><i className={`scene-dot scene-dot--${category}`} />{LANDSCAPE_CATEGORY_LABELS[category]}</dt><dd>{categoryCounts[category]}</dd></div>
             ))}
           </dl>
-          <div className="scene-reading-note"><strong>3D 확인의 목적</strong><p>높이와 시선을 바꾸며 동선, 그늘, 시설물의 겹침을 확인하세요. 배치를 바꾸려면 평면 설계로 돌아갑니다.</p></div>
+          <div className="scene-reading-note"><strong>예상 보기</strong><p>항공사진 한 장만 사용하므로 건물 옆면과 실제 높이는 정확하지 않습니다. 재료의 위치와 공간 구성을 비교해 보세요.</p></div>
         </aside>
 
         <section className="scene-viewport-panel">
@@ -133,7 +133,7 @@ export function Landscape3DPreview({
             <div><span>VIEW</span><strong>{camera.label}</strong></div>
             <div className="scene-view-buttons">
               <button type="button" className={camera.label === "위에서 보기" ? "is-active" : ""} onClick={() => setView({ tilt: 0, rotation: 0, zoom: 0.86, label: "위에서 보기" })}>위에서</button>
-              <button type="button" className={camera.label === "정면 보기" ? "is-active" : ""} onClick={() => setView({ tilt: 70, rotation: 0, zoom: 0.82, label: "정면 보기" })}>정면</button>
+              <button type="button" className={camera.label === "낮게 보기" ? "is-active" : ""} onClick={() => setView({ tilt: 62, rotation: 0, zoom: 0.82, label: "낮게 보기" })}>낮게</button>
               <button type="button" className={camera.label === "입체 보기" ? "is-active" : ""} onClick={() => setView(INITIAL_CAMERA)}>입체</button>
             </div>
           </div>
@@ -147,10 +147,11 @@ export function Landscape3DPreview({
             onPointerMove={handlePointerMove}
             onPointerUp={() => { dragRef.current = null; }}
             onPointerCancel={() => { dragRef.current = null; }}
-            aria-label="회전 가능한 학교 조경 3D 미리보기"
+            aria-label="회전 가능한 항공사진 기반 학교 조경 예상 모형"
           >
             <div className="scene-sky" />
             <div className="scene-ground-shadow" />
+            <div className="scene-estimate-badge"><strong>예상 모형</strong><span>실제 높이·옆면은 추정 표현</span></div>
             <div
               className="scene-world"
               style={{
@@ -168,8 +169,8 @@ export function Landscape3DPreview({
                 const style = {
                   left: `${object.xPercent}%`,
                   top: `${object.yPercent}%`,
-                  width: `${object.sizePixels}px`,
-                  height: `${object.sizePixels}px`,
+                  width: `${object.footprintWidthPixels}px`,
+                  height: `${object.footprintHeightPixels}px`,
                   zIndex: object.zIndex + 2,
                   transform: `translate(-50%, -50%) rotateZ(${object.rotationDegrees}deg) translateZ(${object.heightPixels}px)`,
                   "--scene-color": object.color,
@@ -182,14 +183,17 @@ export function Landscape3DPreview({
                     style={style}
                     title={object.label}
                   >
-                    <span className="scene-model"><i /></span>
-                    <small>{object.label}</small>
+                    {object.assetUrl ? (
+                      <span className={`scene-model scene-model--photo scene-model--${object.materialId}`}>
+                        <Image src={object.assetUrl} alt="" fill sizes="100px" unoptimized draggable={false} />
+                      </span>
+                    ) : null}
                   </div>
                 );
               })}
             </div>
             <div className="scene-compass"><span>N</span><i style={{ transform: `rotate(${camera.rotation}deg)` }} /></div>
-            <p className="scene-drag-help">화면을 드래그해 360° 돌려보세요.</p>
+            <p className="scene-drag-help">드래그해 360° 돌려보세요.</p>
           </div>
         </section>
 

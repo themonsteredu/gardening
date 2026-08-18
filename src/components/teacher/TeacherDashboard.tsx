@@ -225,7 +225,7 @@ export function TeacherDashboard() {
             </div>
 
             <div className="drawer-note">
-              학교 사진 한 장을 넣으면 학생이 바로 재료를 배치할 수 있는 설계도가 자동으로 준비됩니다.
+              학교 사진 한 장이면 항공 배치, 예상 도면, 360° 예상전경을 함께 사용할 수 있습니다.
             </div>
             <div className="drawer-actions">
               <button className="button button--quiet" type="button" onClick={() => setEditorOpen(false)}>
@@ -268,19 +268,18 @@ function SetupPanel({
     <section className="dashboard-content dashboard-content--setup">
       <div className="teacher-simple-setup">
         <header>
-          <div><h2>학교 공간 준비</h2><p>{hasPhoto && hasBackground ? "자동 설계도가 준비되었습니다." : "학교 사진 한 장이면 충분합니다."}</p></div>
+          <div><h2>학교 공간 준비</h2><p>{hasPhoto && hasBackground ? "항공 배치와 예상 보기가 준비되었습니다." : "학교 사진 한 장이면 충분합니다."}</p></div>
           <span className={hasPhoto && hasBackground ? "is-ready" : ""}>{hasPhoto && hasBackground ? "준비됨" : "준비 전"}</span>
         </header>
         <div className="teacher-simple-photo">
-        {autoBackground && hasBackground ? (
-          <AutoSiteBackgroundPreview background={autoBackground} compact />
+        {autoBackground && hasBackground && siteImage ? (
+          <AutoSiteBackgroundPreview image={siteImage} compact />
         ) : (
           <div className="teacher-simple-photo__empty"><strong>학교 사진</strong><span>항공사진이나 배치 이미지를 넣어주세요.</span></div>
         )}
         </div>
         <div className="teacher-simple-actions">
           <Link className="button button--quiet" href="/teacher/site-image">{hasPhoto ? "사진 바꾸기" : "학교 사진 올리기"}</Link>
-          {hasPhoto && hasBackground ? <Link className="teacher-simple-adjust" href="/teacher/site-image">간단히 수정</Link> : null}
           <button className="button button--primary" type="button" disabled={!hasPhoto || !hasBackground} onClick={onStart}>수업 시작</button>
         </div>
         {hasPhoto && hasBackground ? <Link className="teacher-kit-link" href="/teacher/mini-garden-kit">{hasKit ? "오늘의 재료 바꾸기" : "오늘의 재료 준비"}</Link> : null}

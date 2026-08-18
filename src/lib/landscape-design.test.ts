@@ -7,6 +7,14 @@ import {
 } from "./landscape-design";
 
 describe("student landscape placement", () => {
+  it("uses real image assets for the student material palette", () => {
+    const primaryIds = ["tree-canopy", "pine", "flower", "lawn", "bench", "rock", "dirt-path", "flower-bed"];
+    const primaryMaterials = LANDSCAPE_MATERIALS.filter((material) => primaryIds.includes(material.id));
+
+    expect(primaryMaterials).toHaveLength(primaryIds.length);
+    expect(primaryMaterials.every((material) => material.planAssetUrl?.endsWith(".webp"))).toBe(true);
+  });
+
   it("creates structured plan objects from material dimensions", () => {
     const bench = LANDSCAPE_MATERIALS.find((material) => material.id === "bench")!;
     expect(createLandscapeObject(bench, { x: 0.4, y: 0.6 }, 3, "object-1")).toMatchObject({
