@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectIgnoredUiBands, simplifyImagePixels } from "./auto-site-background";
+import { detectEstimatedBuildings, detectIgnoredUiBands, simplifyImagePixels } from "./auto-site-background";
 
 function imageWithBands(width: number, height: number, top: number, bottom: number) {
   const pixels = new Uint8ClampedArray(width * height * 4);
@@ -36,5 +36,27 @@ describe("automatic school background", () => {
     simplifyImagePixels(pixels, 2, 1);
     expect(Math.max(pixels[0], pixels[1], pixels[2]) - Math.min(pixels[0], pixels[1], pixels[2])).toBeLessThan(100);
     expect(pixels[0] + pixels[1] + pixels[2]).toBeGreaterThan(20 + 120 + 40);
+  });
+
+  it("finds elongated roof regions and estimates their height", () => {
+    const width = 160;
+    const height = 100;
+    const pixels = new Uint8ClampedArray(width * height * 4);
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const pixel = (y * width + x) * 4;
+        const onRoof = (x >= 22 && x <= 72 && y >= 18 && y <= 28)
+          || (x >= 96 && x <= 112 && y >= 48 && y <= 84);
+        pixels[pixel] = onRoof ? 166 : 47;
+        pixels[pixel + 1] = onRoof ? 72 : 116;
+        pixels[pixel + 2] = onRoof ? 58 : 54;
+        pixels[pixel + 3] = 255;
+      }
+    }
+
+    const buildings = detectEstimatedBuildings(pixels, width, height);
+    expect(buildings.length).toBeGreaterThanOrEqual(2);
+    expect(buildings.every((building) => building.estimatedFloors >= 2)).toBe(true);
+    expect(buildings.some((building) => building.confidence >= 0.35)).toBe(true);
   });
 });

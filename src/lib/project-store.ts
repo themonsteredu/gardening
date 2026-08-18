@@ -1,5 +1,5 @@
 import { DEMO_PROJECT } from "@/data/demo-project";
-import type { AutoSiteBackground, LandscapeGalleryEntry, MiniGardenKit, SchoolProject, SiteImage, StudentLandscapeDesign, StudentMiniGardenDesign } from "@/domain/models";
+import type { AutoSiteBackground, EstimatedBuildingFootprint, LandscapeGalleryEntry, MiniGardenKit, SchoolProject, SiteImage, StudentLandscapeDesign, StudentMiniGardenDesign } from "@/domain/models";
 
 export const PROJECT_STORAGE_KEY = "gardening.teacher.project.v1";
 export const SITE_IMAGE_META_STORAGE_KEY = "gardening.site-image.meta.v1";
@@ -48,14 +48,31 @@ export function parseStoredAutoSiteBackground(value: string | null): AutoSiteBac
   if (!value) return null;
   try {
     const background = JSON.parse(value) as AutoSiteBackground;
+    const buildingFootprints = Array.isArray(background.buildingFootprints)
+      ? background.buildingFootprints.filter(isEstimatedBuildingFootprint)
+      : [];
     return typeof background?.siteImageId === "string"
       && typeof background.storageKey === "string"
       && typeof background.method === "string"
-      ? background
+      ? { ...background, buildingFootprints }
       : null;
   } catch {
     return null;
   }
+}
+
+function isEstimatedBuildingFootprint(value: unknown): value is EstimatedBuildingFootprint {
+  if (!value || typeof value !== "object") return false;
+  const building = value as Partial<EstimatedBuildingFootprint>;
+  return typeof building.id === "string"
+    && typeof building.x === "number"
+    && typeof building.y === "number"
+    && typeof building.width === "number"
+    && typeof building.depth === "number"
+    && typeof building.rotation === "number"
+    && typeof building.estimatedFloors === "number"
+    && typeof building.roofColor === "string"
+    && typeof building.confidence === "number";
 }
 
 export function parseStoredLandscapeDesign(value: string | null): StudentLandscapeDesign | null {

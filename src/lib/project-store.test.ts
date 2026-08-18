@@ -28,7 +28,7 @@ describe("student browser storage", () => {
       ignoredTopRatio: 0.06,
       ignoredBottomRatio: 0.04,
     };
-    expect(parseStoredAutoSiteBackground(JSON.stringify(background))).toEqual(background);
+    expect(parseStoredAutoSiteBackground(JSON.stringify(background))).toEqual({ ...background, buildingFootprints: [] });
     expect(parseStoredAutoSiteBackground('{"siteImageId":1}')).toBeNull();
   });
 

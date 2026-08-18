@@ -37,14 +37,14 @@ export function SiteImageUploader() {
   async function buildBackground(file: Blob, siteImageId: string, mimeType: string, adjustment = 0): Promise<AutoSiteBackground> {
     const id = `site-background-${crypto.randomUUID()}`;
     if (!mimeType.startsWith("image/")) {
-      return { id, siteImageId, storageKey: siteImageId, mimeType, width: 0, height: 0, generatedAt: new Date().toISOString(), method: "source-filter-fallback", adjustment, ignoredTopRatio: 0, ignoredBottomRatio: 0 };
+      return { id, siteImageId, storageKey: siteImageId, mimeType, width: 0, height: 0, generatedAt: new Date().toISOString(), method: "source-filter-fallback", adjustment, ignoredTopRatio: 0, ignoredBottomRatio: 0, buildingFootprints: [], buildingDetection: "unavailable" };
     }
     try {
       const result = await createAutoSiteBackground(file, adjustment);
       await saveSiteImageFile(id, result.blob);
-      return { id, siteImageId, storageKey: id, mimeType: result.blob.type || "image/webp", width: result.width, height: result.height, generatedAt: new Date().toISOString(), method: "visual-simplification-v1", adjustment, ignoredTopRatio: result.ignoredTopRatio, ignoredBottomRatio: result.ignoredBottomRatio };
+      return { id, siteImageId, storageKey: id, mimeType: result.blob.type || "image/webp", width: result.width, height: result.height, generatedAt: new Date().toISOString(), method: "visual-simplification-v1", adjustment, ignoredTopRatio: result.ignoredTopRatio, ignoredBottomRatio: result.ignoredBottomRatio, buildingFootprints: result.buildingFootprints, buildingDetection: result.buildingDetection };
     } catch {
-      return { id, siteImageId, storageKey: siteImageId, mimeType, width: 0, height: 0, generatedAt: new Date().toISOString(), method: "source-filter-fallback", adjustment, ignoredTopRatio: 0, ignoredBottomRatio: 0 };
+      return { id, siteImageId, storageKey: siteImageId, mimeType, width: 0, height: 0, generatedAt: new Date().toISOString(), method: "source-filter-fallback", adjustment, ignoredTopRatio: 0, ignoredBottomRatio: 0, buildingFootprints: [], buildingDetection: "unavailable" };
     }
   }
 
@@ -104,6 +104,7 @@ export function SiteImageUploader() {
             <>
               <header className="site-auto-ready-heading"><p className="eyebrow">준비 완료</p><h1>학교 공간 준비 완료</h1></header>
               <AutoSiteBackgroundPreview image={activeImage} />
+              <p className="site-building-result"><strong>건물 입체화 준비</strong><span>건물 후보 {activeBackground.buildingFootprints?.length ?? 0}동 · 높이는 자동 추정</span></p>
               <div className="site-auto-actions">
                 <label className="button button--quiet" htmlFor="site-photo-input">사진 바꾸기</label>
                 <Link className="button button--primary" href="/teacher" onClick={startClass}>수업 시작</Link>

@@ -54,6 +54,18 @@ export interface SiteImage {
   uploadedAt: string;
 }
 
+export interface EstimatedBuildingFootprint {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  depth: number;
+  rotation: number;
+  estimatedFloors: number;
+  roofColor: string;
+  confidence: number;
+}
+
 export interface AutoSiteBackground {
   id: string;
   siteImageId: string;
@@ -66,6 +78,8 @@ export interface AutoSiteBackground {
   adjustment: number;
   ignoredTopRatio: number;
   ignoredBottomRatio: number;
+  buildingFootprints?: EstimatedBuildingFootprint[];
+  buildingDetection?: "image-heuristic" | "layout-fallback" | "unavailable";
 }
 
 export type LandscapeMaterialCategory =
