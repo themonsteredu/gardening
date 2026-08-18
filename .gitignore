@@ -23,3 +23,5 @@
 # Codex task artifacts
 /outputs/
 /work/
+
+.vercel
