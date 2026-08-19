@@ -31,7 +31,7 @@ describe("approximate landscape plan", () => {
       object("tree-canopy", "tree-2"),
       object("bench", "bench-1"),
     ])).toEqual([
-      expect.objectContaining({ code: "T1", label: "큰 나무", quantity: 2 }),
+      expect.objectContaining({ code: "T1", label: "느티나무", quantity: 2 }),
       expect.objectContaining({ code: "B1", label: "벤치", quantity: 1 }),
     ]);
   });

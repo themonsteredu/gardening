@@ -17,22 +17,24 @@ describe("sample school coordinates", () => {
 
   it("allows open grounds and blocks school buildings", () => {
     expect(isSampleSchoolPlacementAllowed({ x: 0.5, y: 0.55 })).toBe(true);
-    expect(isSampleSchoolPlacementAllowed({ x: 0.5, y: 0.17 })).toBe(false);
+    expect(isSampleSchoolPlacementAllowed({ x: 0.5, y: 0.28 })).toBe(false);
     expect(isSampleSchoolPlacementAllowed({ x: 0.01, y: 0.5 })).toBe(false);
   });
 
   it("clips planted surfaces at building walls and campus edges", () => {
-    expect(isSampleSchoolSurfacePointOpen({ x: 0, z: -5.51 })).toBe(false);
-    expect(isSampleSchoolSurfacePointOpen({ x: 0, z: -5.35 })).toBe(true);
+    expect(isSampleSchoolSurfacePointOpen({ x: 0, z: -3.31 })).toBe(false);
+    expect(isSampleSchoolSurfacePointOpen({ x: 0, z: -3.15 })).toBe(true);
     expect(isSampleSchoolSurfacePointOpen({ x: 15, z: 0 })).toBe(false);
   });
 
-  it("lets lawn reach a wall while keeping tree clearance", () => {
-    const nearBuildingWall = sampleSchoolToNormalized({ x: 0, z: -5.38 });
+  it("lets planted surfaces reach walls and keeps the rear grounds usable", () => {
+    const nearBuildingWall = sampleSchoolToNormalized({ x: 0, z: -3.18 });
+    const rearGround = sampleSchoolToNormalized({ x: 0, z: -8.5 });
     const treeClearance = getSampleSchoolPlacementClearance("tree-canopy", 2.1);
     const lawnClearance = getSampleSchoolPlacementClearance("lawn", 1.26);
 
-    expect(isSampleSchoolPlacementAllowed(nearBuildingWall, treeClearance)).toBe(false);
+    expect(treeClearance).toBe(0.5);
+    expect(isSampleSchoolPlacementAllowed(rearGround, treeClearance)).toBe(true);
     expect(isSampleSchoolPlacementAllowed(nearBuildingWall, lawnClearance)).toBe(true);
   });
 });
