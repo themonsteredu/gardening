@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getSampleSchoolPlacementClearance,
   isSampleSchoolPlacementAllowed,
+  isSampleSchoolSurfacePlacementAllowed,
   isSampleSchoolSurfacePointOpen,
   normalizedToSampleSchool,
   sampleSchoolToNormalized,
@@ -25,6 +26,15 @@ describe("sample school coordinates", () => {
     expect(isSampleSchoolSurfacePointOpen({ x: 0, z: -3.31 })).toBe(false);
     expect(isSampleSchoolSurfacePointOpen({ x: 0, z: -3.15 })).toBe(true);
     expect(isSampleSchoolSurfacePointOpen({ x: 15, z: 0 })).toBe(false);
+  });
+
+  it("keeps the full width of painted grass inside the campus floor", () => {
+    const lawnWidthMeters = 3.2;
+    const safePoint = sampleSchoolToNormalized({ x: -12.8, z: 6.7 });
+    const overflowingPoint = sampleSchoolToNormalized({ x: -14.2, z: 6.7 });
+
+    expect(isSampleSchoolSurfacePlacementAllowed(safePoint, lawnWidthMeters)).toBe(true);
+    expect(isSampleSchoolSurfacePlacementAllowed(overflowingPoint, lawnWidthMeters)).toBe(false);
   });
 
   it("lets planted surfaces reach walls and keeps the rear grounds usable", () => {

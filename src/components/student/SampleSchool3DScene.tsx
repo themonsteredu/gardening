@@ -19,7 +19,7 @@ import { findLandscapeMaterial, LANDSCAPE_MATERIALS, type PlanLandscapeMaterial 
 import type { LandscapeObject, Point2D, SchoolSurfaceMaterialId, SchoolSurfaceStroke } from "@/domain/models";
 import {
   isSampleSchoolSurfacePointOpen,
-  isSampleSchoolPlacementAllowed,
+  isSampleSchoolSurfacePlacementAllowed,
   SAMPLE_SCHOOL_DEPTH_METERS,
   SAMPLE_SCHOOL_SURFACE_MATERIALS,
   SAMPLE_SCHOOL_WIDTH_METERS,
@@ -52,6 +52,7 @@ interface SceneRuntime {
   lawnSurfaceTexture: Texture | null;
   pathSurfaceTexture: Texture | null;
   paverSurfaceTexture: Texture | null;
+  cameraView: SampleSchoolCameraView;
 }
 
 interface SceneCallbacks {
@@ -97,6 +98,7 @@ function setInteractiveObjectId(root: Object3D, id: string) {
 function applyCamera(runtime: SceneRuntime | null, view: SampleSchoolCameraView) {
   if (!runtime) return;
   const { camera, controls } = runtime;
+  runtime.cameraView = view;
   if (view === "aerial") {
     camera.position.set(0, 32, 0.001);
     controls.target.set(0, 0, 0);
@@ -126,6 +128,10 @@ function applyCamera(runtime: SceneRuntime | null, view: SampleSchoolCameraView)
   camera.far = 120;
   camera.updateProjectionMatrix();
   controls.update();
+  runtime.landscapeRoot.traverse((object) => {
+    if (object.userData.photoPlantSide === true) object.visible = view !== "aerial";
+    if (object.userData.photoPlantTop === true) object.visible = view === "aerial";
+  });
 }
 
 function cloneTiledTexture(runtime: SceneRuntime, url: string, repeatX: number, repeatY: number): Texture | null {
@@ -282,7 +288,7 @@ function createSurfaceStrokeMesh(runtime: SceneRuntime, stroke: SchoolSurfaceStr
   const material = runtime.surfaceMaterials.get(stroke.materialId);
   if (!material) return null;
   const points = stroke.points
-    .filter((point) => isSampleSchoolPlacementAllowed(point, 0))
+    .filter((point) => isSampleSchoolSurfacePlacementAllowed(point, stroke.widthMeters))
     .map((point) => new THREE.Vector3(
       (point.x - 0.5) * SAMPLE_SCHOOL_WIDTH_METERS,
       0.018 + Math.min(0.012, stroke.zIndex * 0.00018),
@@ -339,7 +345,7 @@ function rebuildSurfaces(runtime: SceneRuntime, strokes: SchoolSurfaceStroke[]) 
 }
 
 function addPhotoTop(runtime: SceneRuntime, group: Group, texture: Texture | undefined, width: number, depth: number, y: number) {
-  if (!texture) return;
+  if (!texture) return null;
   const { THREE } = runtime;
   const plane = new THREE.Mesh(
     new THREE.PlaneGeometry(width, depth),
@@ -348,9 +354,10 @@ function addPhotoTop(runtime: SceneRuntime, group: Group, texture: Texture | und
   plane.rotation.x = -Math.PI / 2;
   plane.position.y = y;
   group.add(plane);
+  return plane;
 }
 
-function addCrossedPhotoPlant(runtime: SceneRuntime, group: Group, material: PlanLandscapeMaterial) {
+function addPhotoPlant(runtime: SceneRuntime, group: Group, material: PlanLandscapeMaterial) {
   const { THREE, textures } = runtime;
   const sideTexture = material.sideAssetUrl ? textures.get(material.sideAssetUrl) : undefined;
   const topTexture = material.planAssetUrl ? textures.get(material.planAssetUrl) : undefined;
@@ -358,22 +365,31 @@ function addCrossedPhotoPlant(runtime: SceneRuntime, group: Group, material: Pla
   const height = material.realHeightMeters;
   const depth = material.photoDepthMeters ?? width;
   if (sideTexture) {
-    const photoMaterial = new THREE.MeshBasicMaterial({
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
       map: sideTexture,
       transparent: true,
       alphaTest: 0.16,
-      side: THREE.DoubleSide,
       depthWrite: true,
-    });
-    for (const angle of [0, Math.PI / 2]) {
-      const plane = new THREE.Mesh(new THREE.PlaneGeometry(width, height), photoMaterial);
-      plane.position.y = height / 2;
-      plane.rotation.y = angle;
-      plane.castShadow = true;
-      group.add(plane);
-    }
+    }));
+    sprite.center.set(0.5, 0);
+    sprite.position.y = 0.015;
+    sprite.scale.set(width, height, 1);
+    sprite.userData.photoPlantSide = true;
+    sprite.visible = runtime.cameraView !== "aerial";
+    group.add(sprite);
   }
-  addPhotoTop(runtime, group, topTexture, width * 0.96, depth * 0.96, height * (material.photoRender === "tree" ? 0.76 : 0.55));
+  const top = addPhotoTop(
+    runtime,
+    group,
+    topTexture,
+    width * 0.96,
+    depth * 0.96,
+    height * (material.photoRender === "tree" ? 0.76 : 0.55),
+  );
+  if (top) {
+    top.userData.photoPlantTop = true;
+    top.visible = runtime.cameraView === "aerial";
+  }
 }
 
 function normalizeModel(runtime: SceneRuntime, template: Object3D, materialId: string): Object3D {
@@ -965,7 +981,7 @@ function createLandscapeModel(
   const width = Math.max(0.42, object.width);
 
   if (material.photoRender && material.sideAssetUrl) {
-    addCrossedPhotoPlant(runtime, group, material);
+    addPhotoPlant(runtime, group, material);
   } else if (material.modelAssetUrl && modelTemplates.has(material.modelAssetUrl)) {
     group.add(normalizeModel(runtime, modelTemplates.get(material.modelAssetUrl)!, material.id));
   } else if (["tree-canopy", "pine", "maple"].includes(material.id)) {
@@ -1151,6 +1167,7 @@ export function SampleSchool3DScene({
           lawnSurfaceTexture: null,
           pathSurfaceTexture: null,
           paverSurfaceTexture: null,
+          cameraView: initialViewRef.current,
         };
         const textureLoader = new THREE.TextureLoader();
         const textureUrls = [...new Set([
@@ -1208,7 +1225,8 @@ export function SampleSchool3DScene({
           const surfaceId = activeSurfaceRef.current;
           if (surfaceId) {
             const point = groundPoint(runtime, event);
-            if (point && isSampleSchoolPlacementAllowed(point, 0)) {
+            const surface = SAMPLE_SCHOOL_SURFACE_MATERIALS.find((candidate) => candidate.id === surfaceId);
+            if (point && surface && isSampleSchoolSurfacePlacementAllowed(point, surface.widthMeters)) {
               event.preventDefault();
               paintingStrokeId = `surface-stroke-${crypto.randomUUID()}`;
               controls.enabled = false;
@@ -1241,7 +1259,8 @@ export function SampleSchool3DScene({
           if (paintingStrokeId && activeSurfaceRef.current) {
             event.preventDefault();
             const point = groundPoint(runtime, event);
-            if (point && isSampleSchoolPlacementAllowed(point, 0)) {
+            const surface = SAMPLE_SCHOOL_SURFACE_MATERIALS.find((candidate) => candidate.id === activeSurfaceRef.current);
+            if (point && surface && isSampleSchoolSurfacePlacementAllowed(point, surface.widthMeters)) {
               callbacksRef.current.onPaintSurface(paintingStrokeId, activeSurfaceRef.current, point, false);
             }
             renderer.domElement.style.cursor = "crosshair";

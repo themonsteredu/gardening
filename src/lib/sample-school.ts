@@ -72,6 +72,17 @@ export function isSampleSchoolSurfacePointOpen(
   ));
 }
 
+export function isSampleSchoolSurfacePlacementAllowed(
+  point: Point2D,
+  widthMeters: number,
+): boolean {
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y) || !Number.isFinite(widthMeters)) return false;
+  return isSampleSchoolSurfacePointOpen(
+    normalizedToSampleSchool(point),
+    Math.max(0, widthMeters) / 2,
+  );
+}
+
 export function getSampleSchoolPlacementClearance(materialId: string, footprintRadiusMeters: number): number {
   const footprintRadius = Math.max(0, footprintRadiusMeters);
   if (["lawn", "straight-path", "curved-path", "school-paver", "dirt-path", "stepping-stone"].includes(materialId)) {
