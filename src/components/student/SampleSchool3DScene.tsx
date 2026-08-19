@@ -17,6 +17,7 @@ import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js
 import { findLandscapeMaterial, LANDSCAPE_MATERIALS, type PlanLandscapeMaterial } from "@/data/landscape-materials";
 import type { LandscapeObject, Point2D } from "@/domain/models";
 import {
+  isSampleSchoolSurfacePointOpen,
   SAMPLE_SCHOOL_DEPTH_METERS,
   SAMPLE_SCHOOL_WIDTH_METERS,
   sampleSchoolToNormalized,
@@ -36,6 +37,7 @@ interface SceneRuntime {
   pointer: Vector2;
   textures: Map<string, Texture>;
   generatedTextures: Texture[];
+  lawnSurfaceTexture: Texture | null;
 }
 
 interface SceneCallbacks {
@@ -43,6 +45,10 @@ interface SceneCallbacks {
   onMove: (objectId: string, point: Point2D) => void;
   onSelect: (objectId: string | null) => void;
 }
+
+const LAWN_TEXTURE_URL = "/materials/landscape/lawn.webp";
+const LAWN_CELL_SIZE_METERS = 0.07;
+const LAWN_TEXTURE_TILE_METERS = 1.35;
 
 function disposeObject(root: Object3D) {
   root.traverse((object) => {
@@ -186,27 +192,8 @@ function buildSampleCampus(runtime: SceneRuntime) {
   const campus = new THREE.Group();
   scene.add(campus);
 
-  const ground = addFlatArea(THREE, campus, SAMPLE_SCHOOL_WIDTH_METERS, SAMPLE_SCHOOL_DEPTH_METERS, 0x78975d, 0, 0, 0);
+  const ground = addFlatArea(THREE, campus, SAMPLE_SCHOOL_WIDTH_METERS, SAMPLE_SCHOOL_DEPTH_METERS, 0xd9dad5, 0, 0, 0);
   ground.name = "sample-school-placement-ground";
-
-  addFlatArea(THREE, campus, 18.5, 3.8, 0xb9b5a8, 0, -7.15, 0.018);
-  addFlatArea(THREE, campus, 3.8, 8.1, 0xb9b5a8, -8, -2.2, 0.018);
-  addFlatArea(THREE, campus, 6, 5, 0xb9b5a8, 8, -1.8, 0.018);
-  addFlatArea(THREE, campus, 7.2, 5.6, 0xc4bba9, -2.5, 0.4, 0.03);
-  addFlatArea(THREE, campus, 3.4, 15.4, 0xc9c6ba, 0, 0.7, 0.035);
-  addFlatArea(THREE, campus, 10.8, 2.1, 0xc9c6ba, -4.8, 8.65, 0.035);
-  addFlatArea(THREE, campus, 9.8, 6.3, 0xb16a50, 8.4, 6.1, 0.04);
-  addFlatArea(THREE, campus, 7.9, 4.55, 0x72915b, 8.4, 6.1, 0.05);
-
-  const court = addFlatArea(THREE, campus, 7, 4.8, 0x607d86, -8.4, 6.2, 0.045);
-  const lineMaterial = new THREE.LineBasicMaterial({ color: 0xf0eee1 });
-  const courtLinePoints = [
-    new THREE.Vector3(-11.5, 0.06, 3.95), new THREE.Vector3(-5.3, 0.06, 3.95),
-    new THREE.Vector3(-5.3, 0.06, 8.45), new THREE.Vector3(-11.5, 0.06, 8.45),
-    new THREE.Vector3(-11.5, 0.06, 3.95),
-  ];
-  campus.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(courtLinePoints), lineMaterial));
-  court.receiveShadow = true;
 
   addSchoolBuilding(THREE, campus, { x: 0, z: -7.2, width: 18, depth: 3.2, height: 5.4, floors: 3, color: 0xd8d0bd });
   addSchoolBuilding(THREE, campus, { x: -8, z: -2.25, width: 3, depth: 7.2, height: 5.4, floors: 3, color: 0xd2c9b3, windows: false });
@@ -227,37 +214,6 @@ function buildSampleCampus(runtime: SceneRuntime) {
   );
   sign.position.set(0, 4.1, -5.56);
   campus.add(sign);
-
-  const existingTreePositions = [
-    [-13.2, -8.5], [-10.8, -8.7], [10.8, -8.6], [13.1, -8.2],
-    [-13.3, -3.2], [-13.2, 1.2], [13.2, 0.8], [13.1, 4.2],
-    [-13.2, 9], [13, 9], [1.8, 9.2], [4.1, 9.2],
-  ] as const;
-  for (const [x, z] of existingTreePositions) {
-    const trunk = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.1, 0.14, 1.5, 8),
-      new THREE.MeshStandardMaterial({ color: 0x6d513b, roughness: 1 }),
-    );
-    trunk.position.set(x, 0.75, z);
-    trunk.castShadow = true;
-    campus.add(trunk);
-    const crown = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(0.82, 1),
-      new THREE.MeshStandardMaterial({ color: 0x486f42, roughness: 0.95 }),
-    );
-    crown.position.set(x, 1.85, z);
-    crown.castShadow = true;
-    campus.add(crown);
-  }
-
-  const fenceMaterial = new THREE.MeshStandardMaterial({ color: 0x58645f, roughness: 0.8 });
-  for (let x = -14.5; x <= 14.5; x += 1.8) {
-    for (const z of [-10.65, 10.65]) {
-      const post = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.65, 0.055), fenceMaterial);
-      post.position.set(x, 0.325, z);
-      campus.add(post);
-    }
-  }
 
   return ground;
 }
@@ -281,7 +237,165 @@ function addPhotoTop(
   group.add(plane);
 }
 
-function createLandscapeModel(runtime: SceneRuntime, object: LandscapeObject, material: PlanLandscapeMaterial): Group {
+function addPhotoSprite(
+  runtime: SceneRuntime,
+  group: Group,
+  texture: Texture,
+  width: number,
+) {
+  const { THREE } = runtime;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    alphaTest: 0.05,
+    depthWrite: true,
+  }));
+  sprite.center.set(0.5, 0.36);
+  sprite.position.y = width * 0.36 + 0.02;
+  sprite.scale.set(width, width, 1);
+  group.add(sprite);
+}
+
+function createLawnSurfaceTexture(runtime: SceneRuntime, source: Texture | undefined): Texture | null {
+  const sourceImage = source?.image as (CanvasImageSource & {
+    naturalWidth?: number;
+    naturalHeight?: number;
+    width?: number;
+    height?: number;
+  }) | undefined;
+  const sourceWidth = sourceImage?.naturalWidth ?? sourceImage?.width ?? 0;
+  const sourceHeight = sourceImage?.naturalHeight ?? sourceImage?.height ?? 0;
+  if (!sourceImage || sourceWidth <= 0 || sourceHeight <= 0) return null;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 256;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+
+  const cropSize = Math.min(sourceWidth, sourceHeight) * 0.5;
+  context.fillStyle = "#73984f";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(
+    sourceImage,
+    (sourceWidth - cropSize) / 2,
+    (sourceHeight - cropSize) / 2,
+    cropSize,
+    cropSize,
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  );
+
+  const texture = new runtime.THREE.CanvasTexture(canvas);
+  texture.colorSpace = runtime.THREE.SRGBColorSpace;
+  texture.wrapS = runtime.THREE.RepeatWrapping;
+  texture.wrapT = runtime.THREE.RepeatWrapping;
+  texture.anisotropy = runtime.renderer.capabilities.getMaxAnisotropy();
+  runtime.generatedTextures.push(texture);
+  return texture;
+}
+
+function getOrganicPhase(id: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < id.length; index += 1) {
+    hash ^= id.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) / 0xffffffff * Math.PI * 2;
+}
+
+function addLawnSurface(
+  runtime: SceneRuntime,
+  group: Group,
+  object: LandscapeObject,
+  center: { x: number; z: number },
+) {
+  const { THREE } = runtime;
+  const width = Math.max(1.4, object.width * object.scale);
+  const depth = Math.max(1.4, object.height * object.scale);
+  const columns = Math.max(8, Math.ceil(width / LAWN_CELL_SIZE_METERS));
+  const rows = Math.max(8, Math.ceil(depth / LAWN_CELL_SIZE_METERS));
+  const cellWidth = width / columns;
+  const cellDepth = depth / rows;
+  const rotation = -object.rotation * Math.PI / 180;
+  const rotationCos = Math.cos(rotation);
+  const rotationSin = Math.sin(rotation);
+  const organicPhase = getOrganicPhase(object.id);
+  const positions: number[] = [];
+  const uvs: number[] = [];
+
+  const toWorld = (localX: number, localZ: number) => ({
+    x: center.x + localX * rotationCos + localZ * rotationSin,
+    z: center.z - localX * rotationSin + localZ * rotationCos,
+  });
+  const pushVertex = (point: { x: number; z: number }) => {
+    positions.push(point.x - center.x, 0, point.z - center.z);
+    uvs.push(point.x / LAWN_TEXTURE_TILE_METERS, point.z / LAWN_TEXTURE_TILE_METERS);
+  };
+
+  for (let row = 0; row < rows; row += 1) {
+    const z0 = -depth / 2 + row * cellDepth;
+    const z1 = z0 + cellDepth;
+    for (let column = 0; column < columns; column += 1) {
+      const x0 = -width / 2 + column * cellWidth;
+      const x1 = x0 + cellWidth;
+      const normalizedX = ((x0 + x1) / 2) / (width / 2);
+      const normalizedZ = ((z0 + z1) / 2) / (depth / 2);
+      const angle = Math.atan2(normalizedZ, normalizedX);
+      const organicEdge = 0.91
+        + Math.sin(angle * 3 + organicPhase) * 0.055
+        + Math.sin(angle * 7 - organicPhase * 0.7) * 0.03;
+      if (Math.hypot(normalizedX, normalizedZ) > organicEdge) continue;
+
+      const corners = [
+        toWorld(x0, z0),
+        toWorld(x1, z0),
+        toWorld(x1, z1),
+        toWorld(x0, z1),
+      ];
+      if (!corners.every((point) => isSampleSchoolSurfacePointOpen(point, 0.015))) continue;
+
+      pushVertex(corners[0]);
+      pushVertex(corners[3]);
+      pushVertex(corners[1]);
+      pushVertex(corners[1]);
+      pushVertex(corners[3]);
+      pushVertex(corners[2]);
+    }
+  }
+
+  if (positions.length === 0) return;
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.computeVertexNormals();
+  const texture = runtime.lawnSurfaceTexture ?? runtime.textures.get(LAWN_TEXTURE_URL);
+  const lawn = new THREE.Mesh(
+    geometry,
+    new THREE.MeshStandardMaterial({
+      map: texture,
+      color: texture ? 0xffffff : 0x73984f,
+      roughness: 1,
+      metalness: 0,
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    }),
+  );
+  lawn.receiveShadow = true;
+  lawn.renderOrder = 1;
+  group.add(lawn);
+}
+
+function createLandscapeModel(
+  runtime: SceneRuntime,
+  object: LandscapeObject,
+  material: PlanLandscapeMaterial,
+  center: { x: number; z: number },
+): Group {
   const { THREE, textures } = runtime;
   const group = new THREE.Group();
   const texture = material.planAssetUrl ? textures.get(material.planAssetUrl) : undefined;
@@ -290,42 +404,29 @@ function createLandscapeModel(runtime: SceneRuntime, object: LandscapeObject, ma
 
   if (material.id === "tree-canopy" || material.id === "pine") {
     const tall = material.id === "tree-canopy";
-    const height = tall ? 4.7 : 3.2;
-    const trunk = new THREE.Mesh(
-      new THREE.CylinderGeometry(tall ? 0.16 : 0.12, tall ? 0.24 : 0.18, height * 0.58, 10),
-      new THREE.MeshStandardMaterial({ color: 0x725039, roughness: 1 }),
-    );
-    trunk.position.y = height * 0.29;
-    trunk.castShadow = true;
-    group.add(trunk);
-    if (tall) {
-      const crownColors = [0x356a3d, 0x467d47, 0x2f6138, 0x57844d, 0x3c7142];
-      const crownPositions = [
-        [0, height * 0.82, 0, 0.9],
-        [-width * 0.19, height * 0.76, 0.08, 0.72],
-        [width * 0.19, height * 0.78, 0.02, 0.7],
-        [0.04, height * 0.75, -width * 0.17, 0.68],
-        [-0.04, height * 0.93, 0.03, 0.64],
-      ] as const;
-      crownPositions.forEach(([x, y, z, size], index) => {
-        const crownPart = new THREE.Mesh(
-          new THREE.IcosahedronGeometry(Math.max(0.72, width * 0.24) * size, 2),
-          new THREE.MeshStandardMaterial({ color: crownColors[index], roughness: 0.98 }),
-        );
-        crownPart.position.set(x, y, z);
-        crownPart.castShadow = true;
-        group.add(crownPart);
-      });
+    if (texture) {
+      addPhotoSprite(runtime, group, texture, tall ? Math.max(4.2, width) : Math.max(2.8, width));
     } else {
+      const height = tall ? 4.7 : 3.2;
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(tall ? 0.16 : 0.12, tall ? 0.24 : 0.18, height * 0.58, 10),
+        new THREE.MeshStandardMaterial({ color: 0x725039, roughness: 1 }),
+      );
+      trunk.position.y = height * 0.29;
+      trunk.castShadow = true;
+      group.add(trunk);
       const crown = new THREE.Mesh(
-        new THREE.ConeGeometry(Math.max(0.65, width * 0.35), 2.2, 12),
+        tall
+          ? new THREE.IcosahedronGeometry(Math.max(0.82, width * 0.32), 2)
+          : new THREE.ConeGeometry(Math.max(0.65, width * 0.35), 2.2, 12),
         new THREE.MeshStandardMaterial({ color: 0x4b7c3d, roughness: 0.95 }),
       );
       crown.position.y = height * 0.72;
       crown.castShadow = true;
       group.add(crown);
     }
-    addPhotoTop(runtime, group, texture, width * 1.08, width * 1.08, height + 0.04);
+  } else if (material.id === "lawn") {
+    addLawnSurface(runtime, group, object, center);
   } else if (material.id === "bench") {
     const wood = new THREE.MeshStandardMaterial({ color: 0x825538, roughness: 0.78 });
     const metal = new THREE.MeshStandardMaterial({ color: 0x303b39, roughness: 0.5, metalness: 0.32 });
@@ -372,7 +473,7 @@ function createLandscapeModel(runtime: SceneRuntime, object: LandscapeObject, ma
     const planeDepth = material.id === "dirt-path" ? 1.35 : Math.max(2.1, depth);
     const base = new THREE.Mesh(
       new THREE.BoxGeometry(planeWidth, 0.08, planeDepth),
-      new THREE.MeshStandardMaterial({ color: material.id === "lawn" ? 0x76a451 : 0x9c805b, roughness: 1 }),
+      new THREE.MeshStandardMaterial({ color: 0x9c805b, roughness: 1 }),
     );
     base.position.y = 0.04;
     base.receiveShadow = true;
@@ -380,8 +481,10 @@ function createLandscapeModel(runtime: SceneRuntime, object: LandscapeObject, ma
     addPhotoTop(runtime, group, texture, planeWidth, planeDepth, 0.086);
   }
 
-  group.rotation.y = -object.rotation * Math.PI / 180;
-  group.scale.setScalar(object.scale);
+  if (material.id !== "lawn") {
+    group.rotation.y = -object.rotation * Math.PI / 180;
+    group.scale.setScalar(object.scale);
+  }
   setInteractiveObjectId(group, object.id);
   return group;
 }
@@ -396,8 +499,11 @@ function rebuildLandscape(runtime: SceneRuntime, objects: LandscapeObject[], sel
       x: (object.x - 0.5) * SAMPLE_SCHOOL_WIDTH_METERS,
       z: (object.y - 0.5) * SAMPLE_SCHOOL_DEPTH_METERS,
     };
-    const model = createLandscapeModel(runtime, object, material);
-    model.position.set(point.x, 0.06, point.z);
+    const model = createLandscapeModel(runtime, object, material, point);
+    const groundOffset = material.id === "lawn"
+      ? 0.018 + Math.min(0.004, object.zIndex * 0.0001)
+      : 0.06;
+    model.position.set(point.x, groundOffset, point.z);
     landscapeRoot.add(model);
     if (object.id === selectedId) {
       const radius = Math.max(0.65, Math.max(object.width, object.height) * object.scale * 0.62);
@@ -406,7 +512,7 @@ function rebuildLandscape(runtime: SceneRuntime, objects: LandscapeObject[], sel
         new THREE.MeshBasicMaterial({ color: 0xf3c74f, transparent: true, opacity: 0.92, side: THREE.DoubleSide }),
       );
       ring.rotation.x = -Math.PI / 2;
-      ring.position.set(point.x, 0.075, point.z);
+      ring.position.set(point.x, material.id === "lawn" ? 0.03 : 0.075, point.z);
       landscapeRoot.add(ring);
     }
   }
@@ -515,6 +621,7 @@ export function SampleSchool3DScene({
           pointer: new THREE.Vector2(),
           textures: new Map(),
           generatedTextures: [],
+          lawnSurfaceTexture: null,
         };
         runtime.ground = buildSampleCampus(runtime);
 
@@ -535,6 +642,7 @@ export function SampleSchool3DScene({
           renderer.dispose();
           return;
         }
+        runtime.lawnSurfaceTexture = createLawnSurfaceTexture(runtime, runtime.textures.get(LAWN_TEXTURE_URL));
 
         runtimeRef.current = runtime;
         rebuildLandscape(runtime, objectsRef.current, selectedIdRef.current);

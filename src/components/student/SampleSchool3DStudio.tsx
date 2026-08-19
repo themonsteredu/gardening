@@ -15,6 +15,7 @@ import {
   parseStoredLandscapeDesign,
 } from "@/lib/project-store";
 import {
+  getSampleSchoolPlacementClearance,
   isSampleSchoolPlacementAllowed,
   SAMPLE_SCHOOL_SCENE_VERSION,
 } from "@/lib/sample-school";
@@ -25,6 +26,10 @@ const PRIMARY_MATERIALS = LANDSCAPE_MATERIALS.filter((material) => PRIMARY_MATER
 
 function materialRadius(material: PlanLandscapeMaterial, scale = 1): number {
   return Math.max(0.35, Math.max(material.realWidthMeters, material.realHeightMeters) * scale * 0.42);
+}
+
+function materialPlacementClearance(material: PlanLandscapeMaterial, scale = 1): number {
+  return getSampleSchoolPlacementClearance(material.id, materialRadius(material, scale));
 }
 
 export function SampleSchool3DStudio({
@@ -114,7 +119,7 @@ function SampleSchool3DWorkspace({
   const placeMaterial = useCallback((materialId: string, point: Point2D) => {
     const material = findLandscapeMaterial(materialId);
     if (!material) return;
-    if (!isSampleSchoolPlacementAllowed(point, materialRadius(material))) {
+    if (!isSampleSchoolPlacementAllowed(point, materialPlacementClearance(material))) {
       setNotice("건물과 학교 경계를 피해 빈 공간에 놓아주세요.");
       return;
     }
@@ -128,7 +133,7 @@ function SampleSchool3DWorkspace({
   const moveObject = useCallback((objectId: string, point: Point2D) => {
     const object = objects.find((item) => item.id === objectId);
     const material = object ? findLandscapeMaterial(object.materialId) : null;
-    if (!object || !material || !isSampleSchoolPlacementAllowed(point, materialRadius(material, object.scale))) return;
+    if (!object || !material || !isSampleSchoolPlacementAllowed(point, materialPlacementClearance(material, object.scale))) return;
     changeObjects((current) => current.map((item) => item.id === objectId ? { ...item, ...point } : item));
   }, [objects]);
 
@@ -140,7 +145,7 @@ function SampleSchool3DWorkspace({
   function resizeSelected(delta: number) {
     if (!selectedObject || !selectedMaterial) return;
     const scale = Math.max(0.55, Math.min(1.8, selectedObject.scale + delta));
-    if (!isSampleSchoolPlacementAllowed(selectedObject, materialRadius(selectedMaterial, scale))) {
+    if (!isSampleSchoolPlacementAllowed(selectedObject, materialPlacementClearance(selectedMaterial, scale))) {
       setNotice("건물과 겹치지 않는 곳에서 크기를 조절해 주세요.");
       return;
     }
@@ -151,7 +156,7 @@ function SampleSchool3DWorkspace({
   function duplicateSelected() {
     if (!selectedObject || !selectedMaterial) return;
     const candidate = { x: Math.min(0.96, selectedObject.x + 0.045), y: Math.min(0.96, selectedObject.y + 0.045) };
-    const position = isSampleSchoolPlacementAllowed(candidate, materialRadius(selectedMaterial, selectedObject.scale))
+    const position = isSampleSchoolPlacementAllowed(candidate, materialPlacementClearance(selectedMaterial, selectedObject.scale))
       ? candidate
       : { x: selectedObject.x, y: selectedObject.y };
     const copy: LandscapeObject = {

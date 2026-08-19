@@ -3,6 +3,7 @@ import type { Point2D } from "@/domain/models";
 export const SAMPLE_SCHOOL_WIDTH_METERS = 30;
 export const SAMPLE_SCHOOL_DEPTH_METERS = 22;
 export const SAMPLE_SCHOOL_SCENE_VERSION = "sample-middle-school-v1" as const;
+const SAMPLE_SCHOOL_EDGE_PADDING_METERS = 0.65;
 
 export interface SampleSchoolWorldPoint {
   x: number;
@@ -34,10 +35,31 @@ export function sampleSchoolToNormalized(point: SampleSchoolWorldPoint): Point2D
   };
 }
 
+export function isSampleSchoolSurfacePointOpen(
+  point: SampleSchoolWorldPoint,
+  clearanceMeters = 0,
+): boolean {
+  const clearance = Math.max(0, clearanceMeters);
+  if (
+    Math.abs(point.x) >= SAMPLE_SCHOOL_WIDTH_METERS / 2 - clearance
+    || Math.abs(point.z) >= SAMPLE_SCHOOL_DEPTH_METERS / 2 - clearance
+  ) return false;
+
+  return SAMPLE_SCHOOL_BUILDING_ZONES.every((zone) => (
+    Math.abs(point.x - zone.x) > zone.width / 2 + clearance
+    || Math.abs(point.z - zone.z) > zone.depth / 2 + clearance
+  ));
+}
+
+export function getSampleSchoolPlacementClearance(materialId: string, footprintRadiusMeters: number): number {
+  const footprintRadius = Math.max(0, footprintRadiusMeters);
+  return materialId === "lawn" ? Math.min(0.08, footprintRadius) : footprintRadius;
+}
+
 export function isSampleSchoolPlacementAllowed(point: Point2D, radiusMeters = 0.45): boolean {
   if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return false;
   const world = normalizedToSampleSchool(point);
-  const edgePadding = 0.65 + radiusMeters;
+  const edgePadding = SAMPLE_SCHOOL_EDGE_PADDING_METERS + radiusMeters;
   if (
     Math.abs(world.x) > SAMPLE_SCHOOL_WIDTH_METERS / 2 - edgePadding
     || Math.abs(world.z) > SAMPLE_SCHOOL_DEPTH_METERS / 2 - edgePadding
