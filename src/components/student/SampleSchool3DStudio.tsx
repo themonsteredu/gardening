@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { SampleSchool3DScene, type SampleSchoolCameraView } from "@/components/student/SampleSchool3DScene";
 import {
   findLandscapeMaterial,
@@ -21,8 +21,25 @@ import {
 } from "@/lib/sample-school";
 import { useBrowserStorageValue, writeBrowserStorage } from "@/lib/use-browser-storage";
 
-const PRIMARY_MATERIAL_IDS = ["tree-canopy", "pine", "flower", "lawn", "bench", "rock", "dirt-path", "flower-bed"];
-const PRIMARY_MATERIALS = LANDSCAPE_MATERIALS.filter((material) => PRIMARY_MATERIAL_IDS.includes(material.id));
+const MATERIAL_GROUPS = [
+  {
+    id: "plants",
+    label: "나무·식물",
+    materialIds: ["tree-canopy", "pine", "maple", "shrub", "flower", "flower-pink", "flower-yellow", "lavender", "ornamental-grass", "groundcover", "lawn"],
+  },
+  {
+    id: "surfaces",
+    label: "길·바닥",
+    materialIds: ["straight-path", "curved-path", "school-paver", "stepping-stone"],
+  },
+  {
+    id: "features",
+    label: "시설·경관",
+    materialIds: ["bench", "rock", "flower-bed", "planter", "light", "pond"],
+  },
+] as const;
+
+type MaterialGroupId = (typeof MATERIAL_GROUPS)[number]["id"];
 
 function materialRadius(material: PlanLandscapeMaterial, scale = 1): number {
   return Math.max(0.35, Math.max(material.realWidthMeters, material.realHeightMeters) * scale * 0.42);
@@ -79,6 +96,7 @@ function SampleSchool3DWorkspace({
   const [objects, setObjects] = useState<LandscapeObject[]>(startingObjects);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeMaterialId, setActiveMaterialId] = useState<string | null>(null);
+  const [materialGroupId, setMaterialGroupId] = useState<MaterialGroupId>("plants");
   const [cameraView, setCameraView] = useState<SampleSchoolCameraView>("orbit");
   const [notice, setNotice] = useState("재료를 고르고 학교 공간을 눌러보세요.");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(startingObjects.length > 0 ? "saved" : "idle");
@@ -86,6 +104,10 @@ function SampleSchool3DWorkspace({
   const designId = storedDesign?.id ?? `landscape-design-${sessionId}`;
   const selectedObject = objects.find((object) => object.id === selectedId) ?? null;
   const selectedMaterial = selectedObject ? findLandscapeMaterial(selectedObject.materialId) : null;
+  const activeMaterialGroup = MATERIAL_GROUPS.find((group) => group.id === materialGroupId) ?? MATERIAL_GROUPS[0];
+  const visibleMaterials = LANDSCAPE_MATERIALS.filter((material) =>
+    (activeMaterialGroup.materialIds as readonly string[]).includes(material.id),
+  );
 
   const persistDesign = useCallback((nextObjects: LandscapeObject[]) => {
     const design: StudentLandscapeDesign = {
@@ -185,8 +207,25 @@ function SampleSchool3DWorkspace({
           <strong>놓을 재료</strong>
           <p>선택하거나 끌어서 놓으세요.</p>
         </header>
+        <div className="sample-material-tabs" role="tablist" aria-label="재료 종류">
+          {MATERIAL_GROUPS.map((group) => (
+            <button
+              key={group.id}
+              type="button"
+              role="tab"
+              aria-selected={materialGroupId === group.id}
+              className={materialGroupId === group.id ? "is-active" : ""}
+              onClick={() => {
+                setMaterialGroupId(group.id);
+                setActiveMaterialId(null);
+              }}
+            >
+              {group.label}
+            </button>
+          ))}
+        </div>
         <div className="sample-materials__grid">
-          {PRIMARY_MATERIALS.map((material) => (
+          {visibleMaterials.map((material) => (
             <button
               key={material.id}
               type="button"
@@ -219,6 +258,7 @@ function SampleSchool3DWorkspace({
           <div className="sample-camera-tabs" role="group" aria-label="학교 보는 시점">
             <button type="button" className={cameraView === "aerial" ? "is-active" : ""} onClick={() => setCameraView("aerial")}>항공샷</button>
             <button type="button" className={cameraView === "orbit" ? "is-active" : ""} onClick={() => setCameraView("orbit")}>입체</button>
+            <button type="button" className={cameraView === "rear" ? "is-active" : ""} onClick={() => setCameraView("rear")}>뒤·옆</button>
             <button type="button" className={cameraView === "walk" ? "is-active" : ""} onClick={() => setCameraView("walk")}>학생 시점</button>
           </div>
           <div className="sample-school-toolbar__status">
@@ -229,6 +269,7 @@ function SampleSchool3DWorkspace({
 
         <div className={`sample-school-canvas ${activeMaterialId ? "is-placing" : ""}`}>
           <SampleSchool3DScene
+            schoolName={project.schoolName}
             objects={objects}
             selectedId={selectedId}
             activeMaterialId={activeMaterialId}
@@ -241,8 +282,8 @@ function SampleSchool3DWorkspace({
             }}
           />
           <div className="sample-school-canvas__badge">
-            <strong>{cameraView === "aerial" ? "학교 전체 배치" : cameraView === "walk" ? "학생 눈높이" : "360° 입체 보기"}</strong>
-            <span>{cameraView === "aerial" ? "항공에서 위치 확인" : "드래그해 둘러보기"}</span>
+            <strong>{cameraView === "aerial" ? "학교 전체 배치" : cameraView === "walk" ? "학생 눈높이" : cameraView === "rear" ? "학교 뒤·옆 보기" : "360° 입체 보기"}</strong>
+            <span>{cameraView === "aerial" ? "항공에서 위치 확인" : cameraView === "rear" ? "건물 뒤 공간도 꾸며보세요" : "드래그해 둘러보기"}</span>
           </div>
           <p className="sample-school-notice" role="status">{notice}</p>
         </div>
@@ -280,9 +321,13 @@ function SampleSchool3DWorkspace({
 }
 
 function MaterialThumbnail({ material }: { material: PlanLandscapeMaterial }) {
+  const style = { "--material-color": material.color } as CSSProperties;
+
   return (
-    <span className="sample-material-thumb" aria-hidden="true">
-      {material.planAssetUrl ? <Image src={material.planAssetUrl} alt="" fill sizes="96px" unoptimized draggable={false} /> : null}
+    <span className={`sample-material-thumb sample-material-thumb--${material.id}`} style={style} aria-hidden="true">
+      {material.planAssetUrl
+        ? <Image src={material.planAssetUrl} alt="" fill sizes="96px" unoptimized draggable={false} />
+        : <i className="sample-material-symbol" />}
     </span>
   );
 }

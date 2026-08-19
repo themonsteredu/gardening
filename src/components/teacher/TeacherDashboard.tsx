@@ -49,6 +49,9 @@ export function TeacherDashboard() {
     const next: SchoolProject = {
       ...project,
       ...form,
+      schoolName: form.schoolName.trim(),
+      className: form.className.trim(),
+      title: form.title.trim(),
       classCode: project.classCode || generateClassCode(),
       status: "draft",
     };
@@ -250,12 +253,12 @@ function SetupPanel({
     <section className="dashboard-content dashboard-content--setup">
       <div className="teacher-simple-setup">
         <header>
-          <div><h2>3D 학교 준비</h2><p>샘플 중학교 캠퍼스와 조경 재료가 준비되었습니다.</p></div>
+          <div><h2>3D 학교 준비</h2><p>설정한 학교명과 조경 재료가 3D 캠퍼스에 반영됩니다.</p></div>
           <span className="is-ready">준비됨</span>
         </header>
         <div className="teacher-sample-campus">
           <div className="teacher-sample-campus__mark"><span /><span /><span /></div>
-          <div><small>기본 실습 공간</small><strong>푸른솔중학교 3D 캠퍼스</strong><p>본관 · 별관 · 운동장 · 중앙정원 · 보행로</p></div>
+          <div><small>기본 실습 공간</small><strong>{project.schoolName} 3D 캠퍼스</strong><p>본관 · 별관 · 운동장 · 중앙정원 · 보행로</p></div>
           <ul><li>항공샷</li><li>360° 입체</li><li>학생 시점</li></ul>
         </div>
         <div className="teacher-simple-actions">
