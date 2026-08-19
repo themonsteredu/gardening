@@ -111,12 +111,29 @@ export interface LandscapeObject {
   zIndex: number;
 }
 
+export type SchoolSurfaceMaterialId =
+  | "bare-soil"
+  | "lawn-surface"
+  | "walking-path"
+  | "paving"
+  | "gravel-surface"
+  | "sand-surface";
+
+export interface SchoolSurfaceStroke {
+  id: string;
+  materialId: SchoolSurfaceMaterialId;
+  points: Point2D[];
+  widthMeters: number;
+  zIndex: number;
+}
+
 export interface StudentLandscapeDesign {
   id: string;
   studentSessionId: string;
   schoolProjectId: string;
-  sceneVersion?: "photo-plan-v1" | "sample-middle-school-v1";
+  sceneVersion?: "photo-plan-v1" | "sample-middle-school-v1" | "sample-middle-school-v2";
   objects: LandscapeObject[];
+  surfaceStrokes?: SchoolSurfaceStroke[];
   intentionKeyword: string | null;
   intentionReason: string | null;
   thumbnailUrl: string | null;
@@ -129,6 +146,7 @@ export interface LandscapeGalleryEntry {
   schoolProjectId: string;
   nickname: string;
   objects: LandscapeObject[];
+  surfaceStrokes?: SchoolSurfaceStroke[];
   intentionKeyword: string;
   intentionReason: string;
   submittedAt: string;

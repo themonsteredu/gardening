@@ -1,7 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { POT_PRESETS, POT_SHAPE_LABELS, estimatePotVolumeLiters, isValidPotDimension } from "@/data/pot-presets";
 import type { MiniGardenKit, PotPreset, PotShape, SchoolProject } from "@/domain/models";
@@ -159,10 +160,13 @@ function KitForm({ kit, onSave, notice }: { kit: MiniGardenKit | null; onSave: (
 function TransparentPotPreview({ pot }: { pot: PotPreset }) {
   const widthRatio = Math.max(0.55, Math.min(1, pot.widthCm / 28));
   const heightRatio = Math.max(0.45, Math.min(1, pot.heightCm / 26));
+  const isTall = pot.shape === "tall_cylinder";
   return (
     <div className="pot-preview-card">
-      <div className="pot-preview-stage" style={{ "--pot-width": widthRatio, "--pot-height": heightRatio } as CSSProperties}>
-        <div className={`transparent-pot transparent-pot--${pot.shape}`}><span className="pot-rim" /><span className="pot-glass" /><i className="pot-depth" /></div>
+      <div className="pot-preview-stage">
+        <div className={`pot-photo-preview ${isTall ? "is-tall" : "is-low"}`} style={{ width: `${Math.round(widthRatio * (isTall ? 150 : 220))}px`, height: `${Math.round(heightRatio * (isTall ? 235 : 150))}px` }}>
+          <Image src={isTall ? "/assets/photoreal/tall-clear-glass-vase-v2.png" : "/assets/photoreal/clear-glass-vase.png"} alt={`${POT_SHAPE_LABELS[pot.shape]} 실제 화분 미리보기`} fill sizes="220px" unoptimized />
+        </div>
         <span className="pot-width-guide">{pot.widthCm}cm</span><span className="pot-height-guide">{pot.heightCm}cm</span>
       </div>
       <div><span>TRANSPARENT POT PREVIEW</span><strong>{POT_SHAPE_LABELS[pot.shape]}</strong><small>가로 {pot.widthCm} · 세로 {pot.depthCm} · 높이 {pot.heightCm}cm</small></div>

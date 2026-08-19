@@ -1,11 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import type { MiniGardenMaterial } from "@/domain/models";
 import { getMiniMaterialImage } from "@/lib/mini-material-image-store";
 
-export function MiniMaterialThumbnail({ material }: { material: MiniGardenMaterial }) {
+function useMiniMaterialPhoto(material: MiniGardenMaterial) {
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -23,9 +23,35 @@ export function MiniMaterialThumbnail({ material }: { material: MiniGardenMateri
     };
   }, [material.photoStorageKey]);
 
+  return material.photoStorageKey ? objectUrl ?? material.photoUrl : material.photoUrl;
+}
+
+export function MiniMaterialThumbnail({ material }: { material: MiniGardenMaterial }) {
+  const imageUrl = useMiniMaterialPhoto(material);
+
   return (
     <span className={`student-object-thumbnail student-object-thumbnail--${material.type}`}>
-      {objectUrl ? <Image src={objectUrl} alt={`${material.name} 실제 사진`} fill sizes="54px" unoptimized /> : <i style={material.color ? { background: material.color } : undefined}>{material.name.slice(0, 1)}</i>}
+      {imageUrl ? <Image src={imageUrl} alt={`${material.name} 실제 사진`} fill sizes="96px" unoptimized /> : <i style={material.color ? { background: material.color } : undefined}>{material.name.slice(0, 1)}</i>}
+    </span>
+  );
+}
+
+export function MiniMaterialTexture({
+  material,
+  className,
+  style,
+}: {
+  material: MiniGardenMaterial;
+  className: string;
+  style?: CSSProperties;
+}) {
+  const imageUrl = useMiniMaterialPhoto(material);
+
+  return (
+    <span className={className} style={{ ...style, backgroundColor: material.color ?? "#c8b38b" }} title={material.name}>
+      {imageUrl
+        ? <Image src={imageUrl} alt="" fill sizes="420px" unoptimized />
+        : <i aria-hidden="true" style={{ background: material.color ?? "#c8b38b" }} />}
     </span>
   );
 }

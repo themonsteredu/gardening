@@ -1,4 +1,5 @@
 import { DEMO_PROJECT } from "@/data/demo-project";
+import { DEMO_MINI_GARDEN_KIT } from "@/data/demo-mini-garden";
 import type { AutoSiteBackground, EstimatedBuildingFootprint, LandscapeGalleryEntry, MiniGardenKit, SchoolProject, SiteImage, StudentLandscapeDesign, StudentMiniGardenDesign } from "@/domain/models";
 
 export const PROJECT_STORAGE_KEY = "gardening.teacher.project.v1";
@@ -113,11 +114,11 @@ export function upsertLandscapeGalleryEntry(
 }
 
 export function parseStoredMiniGardenKits(value: string | null): MiniGardenKit[] {
-  if (!value) return [];
+  if (!value) return [DEMO_MINI_GARDEN_KIT];
   try {
     const kits = JSON.parse(value) as MiniGardenKit[];
     if (!Array.isArray(kits)) return [];
-    return kits.filter((kit) =>
+    const validKits = kits.filter((kit) =>
       typeof kit?.id === "string"
       && typeof kit.name === "string"
       && typeof kit.potPreset?.id === "string"
@@ -126,8 +127,11 @@ export function parseStoredMiniGardenKits(value: string | null): MiniGardenKit[]
       && typeof kit.potPreset.heightCm === "number"
       && Array.isArray(kit.materials),
     );
+    return validKits.some((kit) => kit.id === DEMO_MINI_GARDEN_KIT.id)
+      ? validKits
+      : [...validKits, DEMO_MINI_GARDEN_KIT];
   } catch {
-    return [];
+    return [DEMO_MINI_GARDEN_KIT];
   }
 }
 

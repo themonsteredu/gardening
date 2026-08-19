@@ -10,10 +10,11 @@ import { MiniGardenSandStudio } from "@/components/student/MiniGardenSandStudio"
 import { MiniGardenObjectStudio } from "@/components/student/MiniGardenObjectStudio";
 import { MiniGardenMakingPlan } from "@/components/student/MiniGardenMakingPlan";
 import { MiniGardenFinalComparison } from "@/components/student/MiniGardenFinalComparison";
+import { DEMO_MINI_GARDEN_KIT } from "@/data/demo-mini-garden";
 import { DEMO_PROJECT } from "@/data/demo-project";
 import type { SchoolProject, StudentSession } from "@/domain/models";
-import { getStudentSessionStorageKey, parseStoredProject, PROJECT_STORAGE_KEY } from "@/lib/project-store";
-import { useBrowserStorageValue } from "@/lib/use-browser-storage";
+import { getStudentSessionStorageKey, MINI_GARDEN_KITS_STORAGE_KEY, parseStoredMiniGardenKits, parseStoredProject, PROJECT_STORAGE_KEY } from "@/lib/project-store";
+import { useBrowserStorageValue, writeBrowserStorage } from "@/lib/use-browser-storage";
 
 interface StoredStudentContext {
   session: StudentSession;
@@ -51,12 +52,24 @@ export function StudentJourney({ sessionId }: { sessionId: string }) {
       return { ...fallbackContext, project: teacherProject };
     }
   }, [fallbackContext, storedContext, teacherProject]);
+  const project = context.project.miniGardenKitId
+    ? context.project
+    : { ...context.project, miniGardenKitId: DEMO_MINI_GARDEN_KIT.id };
   const isMiniGardenView = view === "miniPot" || view === "sandLayers" || view === "objectPlacement" || view === "makingPlan" || view === "finalComparison";
   const journeyStep = view === "gallery" ? 1 : isMiniGardenView && view !== "makingPlan" && view !== "finalComparison" ? 2 : view === "makingPlan" || view === "finalComparison" ? 3 : 0;
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [view]);
+
+  useEffect(() => {
+    if (project.miniGardenKitId !== DEMO_MINI_GARDEN_KIT.id) return;
+    const kits = parseStoredMiniGardenKits(window.localStorage.getItem(MINI_GARDEN_KITS_STORAGE_KEY));
+    const nextKits = kits.some((kit) => kit.id === DEMO_MINI_GARDEN_KIT.id)
+      ? kits.map((kit) => kit.id === DEMO_MINI_GARDEN_KIT.id ? DEMO_MINI_GARDEN_KIT : kit)
+      : [...kits, DEMO_MINI_GARDEN_KIT];
+    writeBrowserStorage("local", MINI_GARDEN_KITS_STORAGE_KEY, JSON.stringify(nextKits));
+  }, [project.miniGardenKitId]);
 
   return (
     <div className="studio-shell">
@@ -66,8 +79,8 @@ export function StudentJourney({ sessionId }: { sessionId: string }) {
           <span><strong>조경전문가</strong><small>직업체험</small></span>
         </Link>
         <div className="studio-project-name">
-          <small>{context.project.schoolName} · {context.project.className}</small>
-          <strong>{context.project.title}</strong>
+          <small>{project.schoolName} · {project.className}</small>
+          <strong>{project.title}</strong>
         </div>
         <div className="student-identity">
           <span>{context.session.nickname.slice(0, 1)}</span>
@@ -77,7 +90,7 @@ export function StudentJourney({ sessionId }: { sessionId: string }) {
 
       <div className="studio-progress studio-progress--simple" aria-label="체험 진행 단계">
         <div className="progress-steps">
-          {["학교조경", "친구작품", "미니조경", "실제제작"].map((label, index) => (
+          {["학교조경", "친구작품", "꽃꾸미기", "완성"].map((label, index) => (
             <div className={journeyStep === index ? "is-current" : journeyStep > index ? "is-done" : ""} key={label}>
               <span>{index + 1}</span><small>{label}</small>
             </div>
@@ -87,14 +100,14 @@ export function StudentJourney({ sessionId }: { sessionId: string }) {
 
       {view === "design" ? (
         <SampleSchool3DStudio
-          project={context.project}
+          project={project}
           nickname={context.session.nickname}
           sessionId={context.session.id}
           onContinue={() => setView("intention")}
         />
       ) : view === "intention" ? (
         <LandscapeIntentionForm
-          project={context.project}
+          project={project}
           nickname={context.session.nickname}
           sessionId={context.session.id}
           onBack={() => setView("design")}
@@ -103,7 +116,7 @@ export function StudentJourney({ sessionId }: { sessionId: string }) {
         />
       ) : view === "gallery" ? (
         <ClassLandscapeGallery
-          project={context.project}
+          project={project}
           nickname={context.session.nickname}
           sessionId={context.session.id}
           onBack={() => setView("intention")}
@@ -111,14 +124,14 @@ export function StudentJourney({ sessionId }: { sessionId: string }) {
         />
       ) : view === "miniPot" ? (
         <MiniGardenPotStudio
-          project={context.project}
+          project={project}
           nickname={context.session.nickname}
           onBack={() => setView("gallery")}
           onContinue={() => setView("sandLayers")}
         />
       ) : view === "sandLayers" ? (
         <MiniGardenSandStudio
-          project={context.project}
+          project={project}
           nickname={context.session.nickname}
           sessionId={context.session.id}
           onBack={() => setView("miniPot")}
@@ -126,7 +139,7 @@ export function StudentJourney({ sessionId }: { sessionId: string }) {
         />
       ) : view === "objectPlacement" ? (
         <MiniGardenObjectStudio
-          project={context.project}
+          project={project}
           nickname={context.session.nickname}
           sessionId={context.session.id}
           onBack={() => setView("sandLayers")}
@@ -134,7 +147,7 @@ export function StudentJourney({ sessionId }: { sessionId: string }) {
         />
       ) : view === "makingPlan" ? (
         <MiniGardenMakingPlan
-          project={context.project}
+          project={project}
           nickname={context.session.nickname}
           sessionId={context.session.id}
           onBack={() => setView("objectPlacement")}
@@ -142,7 +155,7 @@ export function StudentJourney({ sessionId }: { sessionId: string }) {
         />
       ) : (
         <MiniGardenFinalComparison
-          project={context.project}
+          project={project}
           nickname={context.session.nickname}
           sessionId={context.session.id}
           onBack={() => setView("makingPlan")}

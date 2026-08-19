@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from "react";
+import { MiniMaterialTexture, MiniMaterialThumbnail } from "@/components/student/MiniMaterialThumbnail";
 import type { MiniGardenKit, MiniGardenMaterial, SchoolProject, StudentMiniGardenDesign } from "@/domain/models";
 import { normalizeMiniGardenLayerOrder } from "@/lib/mini-garden-layers";
 import {
@@ -19,13 +20,6 @@ import {
   parseStoredMiniGardenKits,
 } from "@/lib/project-store";
 import { useBrowserStorageValue, writeBrowserStorage } from "@/lib/use-browser-storage";
-
-const OBJECT_FALLBACK_COLORS = {
-  scatter: "#92755f",
-  object: "#d99b52",
-  plant: "#4f805d",
-  structure: "#72808a",
-} as const;
 
 export function MiniGardenFinalComparison({
   project,
@@ -211,7 +205,7 @@ function MiniGardenFinalComparisonWorkspace({
 
 function MiniGardenModelSnapshot({ kit, design, materialMap }: { kit: MiniGardenKit; design: StudentMiniGardenDesign; materialMap: Map<string, MiniGardenMaterial> }) {
   const layers = normalizeMiniGardenLayerOrder(design.layers);
-  return <div className="student-final-model" aria-label="학생이 설계한 미니조경 모델 요약"><div className="student-final-model-front"><div className="student-final-model-pot">{layers.map((layer) => <span key={layer.id} style={{ height: `${Math.min(100, (layer.heightCm / kit.potPreset.heightCm) * 100)}%`, background: materialMap.get(layer.materialId)?.color ?? "#c8b18a" }} title={`${materialMap.get(layer.materialId)?.name ?? "층 재료"} ${layer.heightCm}cm`} />)}</div><small>정면 · 층 높이</small></div><div className="student-final-model-top"><div className="student-final-model-map">{design.objects.map((object) => { const material = materialMap.get(object.materialId); if (!material || material.type === "layer") return null; const style = { left: `${object.x}%`, top: `${object.y}%`, background: material.color ?? OBJECT_FALLBACK_COLORS[material.type], "--marker-scale": Math.max(0.7, Math.min(1.4, object.scale)) } as CSSProperties; return <span className={`student-final-marker student-final-marker--${material.type}`} style={style} key={object.id} title={material.name}>{material.type === "plant" ? "✦" : ""}</span>; })}</div><small>위에서 · 재료 위치</small></div></div>;
+  return <div className="student-final-model" aria-label="학생이 설계한 미니조경 실사 이미지 요약"><div className="student-final-model-front"><div className="student-final-model-pot"><div className="student-final-model-pot-fill">{layers.map((layer) => { const material = materialMap.get(layer.materialId); if (!material) return null; return <MiniMaterialTexture key={layer.id} material={material} className="student-final-layer-photo" style={{ height: `${Math.min(100, (layer.heightCm / kit.potPreset.heightCm) * 100)}%` }} />; })}</div><Image src="/assets/photoreal/tall-clear-glass-vase-v2.png" alt="학생이 선택한 긴 투명 꽃병" fill sizes="190px" unoptimized /></div><small>정면 · 실제 재료 층</small></div><div className="student-final-model-top"><div className="student-final-model-map">{design.objects.map((object) => { const material = materialMap.get(object.materialId); if (!material || material.type === "layer") return null; const style = { left: `${object.x}%`, top: `${object.y}%`, "--marker-scale": Math.max(0.7, Math.min(1.4, object.scale)) } as CSSProperties; return <span className={`student-final-marker student-final-marker--${material.type}`} style={style} key={object.id} title={material.name}><MiniMaterialThumbnail material={material} /></span>; })}</div><small>위에서 · 실제 재료 위치</small></div></div>;
 }
 
 function StoredFinalPhoto({ storageKey, name }: { storageKey: string; name: string }) {

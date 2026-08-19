@@ -1,9 +1,30 @@
-import type { Point2D } from "@/domain/models";
+import type { Point2D, SchoolSurfaceMaterialId } from "@/domain/models";
 
 export const SAMPLE_SCHOOL_WIDTH_METERS = 30;
 export const SAMPLE_SCHOOL_DEPTH_METERS = 22;
-export const SAMPLE_SCHOOL_SCENE_VERSION = "sample-middle-school-v1" as const;
+export const SAMPLE_SCHOOL_SCENE_VERSION = "sample-middle-school-v2" as const;
 const SAMPLE_SCHOOL_EDGE_PADDING_METERS = 0.4;
+
+export interface SampleSchoolSurfaceMaterial {
+  id: SchoolSurfaceMaterialId;
+  name: string;
+  instruction: string;
+  textureUrl: string;
+  widthMeters: number;
+}
+
+export const SAMPLE_SCHOOL_SURFACE_MATERIALS: readonly SampleSchoolSurfaceMaterial[] = [
+  { id: "bare-soil", name: "흙바닥", instruction: "빈 땅으로 되돌리기", textureUrl: "/assets/photoreal/bare-soil-texture.png", widthMeters: 3.4 },
+  { id: "lawn-surface", name: "잔디", instruction: "잔디밭 칠하기", textureUrl: "/assets/photoreal/lawn-texture.jpg", widthMeters: 3.2 },
+  { id: "walking-path", name: "산책로", instruction: "길게 이어 그리기", textureUrl: "/assets/photoreal/gravel-texture.jpg", widthMeters: 1.45 },
+  { id: "paving", name: "보도블록", instruction: "포장 공간 칠하기", textureUrl: "/assets/photoreal/paving-texture.jpg", widthMeters: 2.4 },
+  { id: "gravel-surface", name: "자갈", instruction: "자갈 바닥 칠하기", textureUrl: "/assets/photoreal/gravel-texture.jpg", widthMeters: 2.2 },
+  { id: "sand-surface", name: "모래", instruction: "모래 바닥 칠하기", textureUrl: "/assets/photoreal/sand-texture.jpg", widthMeters: 2.8 },
+] as const;
+
+export function findSampleSchoolSurfaceMaterial(id: string): SampleSchoolSurfaceMaterial | undefined {
+  return SAMPLE_SCHOOL_SURFACE_MATERIALS.find((material) => material.id === id);
+}
 
 export interface SampleSchoolWorldPoint {
   x: number;

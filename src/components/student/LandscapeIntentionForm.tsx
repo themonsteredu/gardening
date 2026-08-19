@@ -74,6 +74,7 @@ export function LandscapeIntentionForm({
       schoolProjectId: project.id,
       nickname,
       objects: design.objects,
+      surfaceStrokes: design.surfaceStrokes,
       intentionKeyword: keyword,
       intentionReason: trimmedReason,
       submittedAt,

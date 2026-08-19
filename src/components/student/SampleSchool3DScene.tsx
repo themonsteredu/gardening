@@ -5,6 +5,7 @@ import type {
   Group,
   Material,
   Mesh,
+  MeshStandardMaterial,
   Object3D,
   PerspectiveCamera,
   Raycaster,
@@ -15,15 +16,23 @@ import type {
 } from "three";
 import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { findLandscapeMaterial, LANDSCAPE_MATERIALS, type PlanLandscapeMaterial } from "@/data/landscape-materials";
-import type { LandscapeObject, Point2D } from "@/domain/models";
+import type { LandscapeObject, Point2D, SchoolSurfaceMaterialId, SchoolSurfaceStroke } from "@/domain/models";
 import {
   isSampleSchoolSurfacePointOpen,
+  isSampleSchoolPlacementAllowed,
   SAMPLE_SCHOOL_DEPTH_METERS,
+  SAMPLE_SCHOOL_SURFACE_MATERIALS,
   SAMPLE_SCHOOL_WIDTH_METERS,
   sampleSchoolToNormalized,
 } from "@/lib/sample-school";
 
 export type SampleSchoolCameraView = "aerial" | "orbit" | "rear" | "walk";
+
+const CAMPUS_TEXTURE_URLS = [
+  "/assets/photoreal/bare-soil-texture.png",
+  "/assets/photoreal/schoolFacade-texture.jpg",
+  "/assets/photoreal/schoolConcrete-texture.jpg",
+] as const;
 
 interface SceneRuntime {
   THREE: typeof import("three");
@@ -32,10 +41,13 @@ interface SceneRuntime {
   renderer: WebGLRenderer;
   controls: OrbitControls;
   ground: Mesh;
+  surfaceRoot: Group;
   landscapeRoot: Group;
   raycaster: Raycaster;
   pointer: Vector2;
   textures: Map<string, Texture>;
+  modelTemplates: Map<string, Object3D>;
+  surfaceMaterials: Map<SchoolSurfaceMaterialId, MeshStandardMaterial>;
   generatedTextures: Texture[];
   lawnSurfaceTexture: Texture | null;
   pathSurfaceTexture: Texture | null;
@@ -46,6 +58,7 @@ interface SceneCallbacks {
   onPlace: (materialId: string, point: Point2D) => void;
   onMove: (objectId: string, point: Point2D) => void;
   onSelect: (objectId: string | null) => void;
+  onPaintSurface: (strokeId: string, materialId: SchoolSurfaceMaterialId, point: Point2D, startsStroke: boolean) => void;
 }
 
 const LAWN_TEXTURE_URL = "/materials/landscape/lawn.webp";
@@ -61,10 +74,10 @@ function disposeObject(root: Object3D) {
   });
 }
 
-function clearGroup(group: Group) {
+function clearGroup(group: Group, dispose = true) {
   for (const child of [...group.children]) {
     group.remove(child);
-    disposeObject(child);
+    if (dispose) disposeObject(child);
   }
 }
 
@@ -85,14 +98,14 @@ function applyCamera(runtime: SceneRuntime | null, view: SampleSchoolCameraView)
   if (!runtime) return;
   const { camera, controls } = runtime;
   if (view === "aerial") {
-    camera.position.set(0, 31, 0.001);
+    camera.position.set(0, 32, 0.001);
     controls.target.set(0, 0, 0);
     controls.minDistance = 20;
-    controls.maxDistance = 38;
+    controls.maxDistance = 39;
     controls.maxPolarAngle = Math.PI * 0.48;
   } else if (view === "walk") {
-    camera.position.set(-1.5, 2.1, 9.7);
-    controls.target.set(-0.5, 1.2, 0.4);
+    camera.position.set(-1.5, 2.2, 9.8);
+    controls.target.set(-0.5, 1.15, 0.2);
     controls.minDistance = 4;
     controls.maxDistance = 22;
     controls.maxPolarAngle = Math.PI * 0.5;
@@ -115,36 +128,30 @@ function applyCamera(runtime: SceneRuntime | null, view: SampleSchoolCameraView)
   controls.update();
 }
 
-function addFlatArea(
-  THREE: typeof import("three"),
-  parent: Object3D,
-  width: number,
-  depth: number,
-  color: number,
-  x: number,
-  z: number,
-  y = 0.025,
-) {
-  const mesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(width, depth),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.94, metalness: 0 }),
-  );
-  mesh.rotation.x = -Math.PI / 2;
-  mesh.position.set(x, y, z);
-  mesh.receiveShadow = true;
-  parent.add(mesh);
-  return mesh;
+function cloneTiledTexture(runtime: SceneRuntime, url: string, repeatX: number, repeatY: number): Texture | null {
+  const original = runtime.textures.get(url);
+  if (!original) return null;
+  const texture = original.clone();
+  texture.wrapS = runtime.THREE.RepeatWrapping;
+  texture.wrapT = runtime.THREE.RepeatWrapping;
+  texture.repeat.set(repeatX, repeatY);
+  texture.needsUpdate = true;
+  runtime.generatedTextures.push(texture);
+  return texture;
 }
 
 function addSchoolBuilding(
-  THREE: typeof import("three"),
+  runtime: SceneRuntime,
   parent: Object3D,
-  options: { x: number; z: number; width: number; depth: number; height: number; floors: number; color: number; windows?: boolean },
+  options: { x: number; z: number; width: number; depth: number; height: number; floors: number; concrete?: boolean },
 ) {
-  const { x, z, width, depth, height, floors, color, windows = true } = options;
+  const { THREE } = runtime;
+  const { x, z, width, depth, height, floors, concrete = false } = options;
+  const textureUrl = concrete ? CAMPUS_TEXTURE_URLS[2] : CAMPUS_TEXTURE_URLS[1];
+  const facade = cloneTiledTexture(runtime, textureUrl, Math.max(2, width / 2.6), Math.max(1, floors));
   const body = new THREE.Mesh(
     new THREE.BoxGeometry(width, height, depth),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.82 }),
+    new THREE.MeshStandardMaterial({ map: facade, color: 0xffffff, roughness: 0.84, metalness: 0 }),
   );
   body.position.set(x, height / 2, z);
   body.castShadow = true;
@@ -152,24 +159,28 @@ function addSchoolBuilding(
   parent.add(body);
 
   const roof = new THREE.Mesh(
-    new THREE.BoxGeometry(width + 0.16, 0.2, depth + 0.16),
-    new THREE.MeshStandardMaterial({ color: 0x5c675f, roughness: 0.9 }),
+    new THREE.BoxGeometry(width + 0.22, 0.24, depth + 0.22),
+    new THREE.MeshStandardMaterial({ color: 0x59615b, roughness: 0.96 }),
   );
-  roof.position.set(x, height + 0.1, z);
+  roof.position.set(x, height + 0.12, z);
   roof.castShadow = true;
   parent.add(roof);
 
-  if (!windows) return;
   const columns = Math.max(2, Math.floor(width / 1.45));
-  const paneGeometry = new THREE.BoxGeometry(0.72, 0.62, 0.055);
-  const paneMaterial = new THREE.MeshStandardMaterial({ color: 0x7395a0, roughness: 0.24, metalness: 0.12 });
+  const paneGeometry = new THREE.BoxGeometry(0.72, 0.62, 0.06);
+  const paneMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0x7b9da6,
+    roughness: 0.18,
+    metalness: 0.08,
+    transmission: 0.12,
+  });
   for (let floor = 0; floor < floors; floor += 1) {
     for (let column = 0; column < columns; column += 1) {
       const pane = new THREE.Mesh(paneGeometry, paneMaterial);
       pane.position.set(
         x - width / 2 + (column + 0.5) * width / columns,
         0.82 + floor * (height / floors),
-        z + depth / 2 + 0.035,
+        z + depth / 2 + 0.04,
       );
       parent.add(pane);
     }
@@ -204,23 +215,31 @@ function createSchoolSignTexture(THREE: typeof import("three"), schoolName: stri
   return texture;
 }
 
-function buildSampleCampus(runtime: SceneRuntime, schoolName: string) {
+function buildSampleCampus(runtime: SceneRuntime, schoolName: string): Mesh {
   const { THREE, scene, generatedTextures } = runtime;
   const campus = new THREE.Group();
   scene.add(campus);
 
-  const ground = addFlatArea(THREE, campus, SAMPLE_SCHOOL_WIDTH_METERS, SAMPLE_SCHOOL_DEPTH_METERS, 0xd9dad5, 0, 0, 0);
-  ground.name = "sample-school-placement-ground";
+  const soilTexture = cloneTiledTexture(runtime, CAMPUS_TEXTURE_URLS[0], 7, 5);
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(SAMPLE_SCHOOL_WIDTH_METERS, SAMPLE_SCHOOL_DEPTH_METERS),
+    new THREE.MeshStandardMaterial({ map: soilTexture, color: 0xffffff, roughness: 1, metalness: 0 }),
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  ground.name = "empty-school-placement-ground";
+  campus.add(ground);
 
-  addSchoolBuilding(THREE, campus, { x: 0, z: -5, width: 18, depth: 3.2, height: 5.4, floors: 3, color: 0xd8d0bd });
-  addSchoolBuilding(THREE, campus, { x: -8, z: -0.05, width: 3, depth: 7.2, height: 5.4, floors: 3, color: 0xd2c9b3, windows: false });
-  addSchoolBuilding(THREE, campus, { x: 8, z: 0.4, width: 5.2, depth: 4.2, height: 4, floors: 2, color: 0xb8c3bd, windows: false });
+  addSchoolBuilding(runtime, campus, { x: 0, z: -5, width: 18, depth: 3.2, height: 5.4, floors: 3 });
+  addSchoolBuilding(runtime, campus, { x: -8, z: -0.05, width: 3, depth: 7.2, height: 5.4, floors: 3 });
+  addSchoolBuilding(runtime, campus, { x: 8, z: 0.4, width: 5.2, depth: 4.2, height: 4, floors: 2, concrete: true });
 
   const entrance = new THREE.Mesh(
-    new THREE.BoxGeometry(2.4, 1.9, 0.35),
-    new THREE.MeshStandardMaterial({ color: 0x36574a, roughness: 0.7 }),
+    new THREE.BoxGeometry(2.4, 1.9, 0.36),
+    new THREE.MeshPhysicalMaterial({ color: 0x33594c, roughness: 0.32, metalness: 0.08, transmission: 0.08 }),
   );
   entrance.position.set(0, 0.95, -3.2);
+  entrance.castShadow = true;
   campus.add(entrance);
 
   const signTexture = createSchoolSignTexture(THREE, schoolName);
@@ -239,27 +258,152 @@ function buildSampleCampus(runtime: SceneRuntime, schoolName: string) {
   sign.position.set(0, 4.15, -3.22);
   sign.renderOrder = 2;
   campus.add(sign);
-
   return ground;
 }
 
-function addPhotoTop(
-  runtime: SceneRuntime,
-  group: Group,
-  texture: Texture | undefined,
-  width: number,
-  depth: number,
-  y: number,
-) {
+function createSurfaceMaterials(runtime: SceneRuntime) {
+  for (const surface of SAMPLE_SCHOOL_SURFACE_MATERIALS) {
+    const texture = cloneTiledTexture(runtime, surface.textureUrl, 2.4, 1.5);
+    const material = new runtime.THREE.MeshStandardMaterial({
+      map: texture,
+      color: 0xffffff,
+      roughness: 0.98,
+      metalness: 0,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    });
+    runtime.surfaceMaterials.set(surface.id, material);
+  }
+}
+
+function createSurfaceStrokeMesh(runtime: SceneRuntime, stroke: SchoolSurfaceStroke): Mesh | null {
+  const { THREE } = runtime;
+  const material = runtime.surfaceMaterials.get(stroke.materialId);
+  if (!material) return null;
+  const points = stroke.points
+    .filter((point) => isSampleSchoolPlacementAllowed(point, 0))
+    .map((point) => new THREE.Vector3(
+      (point.x - 0.5) * SAMPLE_SCHOOL_WIDTH_METERS,
+      0.018 + Math.min(0.012, stroke.zIndex * 0.00018),
+      (point.y - 0.5) * SAMPLE_SCHOOL_DEPTH_METERS,
+    ));
+  if (points.length === 0) return null;
+
+  if (points.length === 1) {
+    const dot = new THREE.Mesh(new THREE.CircleGeometry(stroke.widthMeters / 2, 36), material);
+    dot.rotation.x = -Math.PI / 2;
+    dot.position.copy(points[0]);
+    dot.renderOrder = stroke.zIndex;
+    return dot;
+  }
+
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+  let travelled = 0;
+  for (let index = 0; index < points.length; index += 1) {
+    const previous = points[Math.max(0, index - 1)];
+    const current = points[index];
+    const next = points[Math.min(points.length - 1, index + 1)];
+    if (index > 0) travelled += current.distanceTo(previous);
+    const tangent = next.clone().sub(previous).setY(0).normalize();
+    const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).multiplyScalar(stroke.widthMeters / 2);
+    const left = current.clone().add(normal);
+    const right = current.clone().sub(normal);
+    positions.push(left.x, left.y, left.z, right.x, right.y, right.z);
+    const u = travelled / Math.max(0.35, stroke.widthMeters);
+    uvs.push(u, 0, u, 1);
+    if (index < points.length - 1) {
+      const base = index * 2;
+      indices.push(base, base + 2, base + 1, base + 1, base + 2, base + 3);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.receiveShadow = true;
+  mesh.renderOrder = stroke.zIndex;
+  return mesh;
+}
+
+function rebuildSurfaces(runtime: SceneRuntime, strokes: SchoolSurfaceStroke[]) {
+  clearGroup(runtime.surfaceRoot, false);
+  for (const stroke of [...strokes].sort((a, b) => a.zIndex - b.zIndex)) {
+    const mesh = createSurfaceStrokeMesh(runtime, stroke);
+    if (mesh) runtime.surfaceRoot.add(mesh);
+  }
+}
+
+function addPhotoTop(runtime: SceneRuntime, group: Group, texture: Texture | undefined, width: number, depth: number, y: number) {
   if (!texture) return;
   const { THREE } = runtime;
   const plane = new THREE.Mesh(
     new THREE.PlaneGeometry(width, depth),
-    new THREE.MeshBasicMaterial({ map: texture, transparent: true, alphaTest: 0.05, side: THREE.DoubleSide }),
+    new THREE.MeshBasicMaterial({ map: texture, transparent: true, alphaTest: 0.08, side: THREE.DoubleSide }),
   );
   plane.rotation.x = -Math.PI / 2;
   plane.position.y = y;
   group.add(plane);
+}
+
+function addCrossedPhotoPlant(runtime: SceneRuntime, group: Group, material: PlanLandscapeMaterial) {
+  const { THREE, textures } = runtime;
+  const sideTexture = material.sideAssetUrl ? textures.get(material.sideAssetUrl) : undefined;
+  const topTexture = material.planAssetUrl ? textures.get(material.planAssetUrl) : undefined;
+  const width = material.realWidthMeters;
+  const height = material.realHeightMeters;
+  const depth = material.photoDepthMeters ?? width;
+  if (sideTexture) {
+    const photoMaterial = new THREE.MeshBasicMaterial({
+      map: sideTexture,
+      transparent: true,
+      alphaTest: 0.16,
+      side: THREE.DoubleSide,
+      depthWrite: true,
+    });
+    for (const angle of [0, Math.PI / 2]) {
+      const plane = new THREE.Mesh(new THREE.PlaneGeometry(width, height), photoMaterial);
+      plane.position.y = height / 2;
+      plane.rotation.y = angle;
+      plane.castShadow = true;
+      group.add(plane);
+    }
+  }
+  addPhotoTop(runtime, group, topTexture, width * 0.96, depth * 0.96, height * (material.photoRender === "tree" ? 0.76 : 0.55));
+}
+
+function normalizeModel(runtime: SceneRuntime, template: Object3D, materialId: string): Object3D {
+  const { THREE } = runtime;
+  const model = template.clone(true);
+  const initial = new THREE.Box3().setFromObject(model);
+  const size = initial.getSize(new THREE.Vector3());
+  const desired = materialId === "bench"
+    ? { axis: "x" as const, size: 1.8 }
+    : materialId === "rock"
+      ? { axis: "max" as const, size: 1.2 }
+      : materialId === "shrub"
+        ? { axis: "y" as const, size: 1.25 }
+        : { axis: "y" as const, size: 0.72 };
+  const measured = desired.axis === "x" ? size.x : desired.axis === "y" ? size.y : Math.max(size.x, size.y, size.z);
+  const scale = desired.size / Math.max(0.001, measured);
+  model.scale.setScalar(scale);
+  const resolved = new THREE.Box3().setFromObject(model);
+  const center = resolved.getCenter(new THREE.Vector3());
+  model.position.x -= center.x;
+  model.position.z -= center.z;
+  model.position.y -= resolved.min.y;
+  model.traverse((child) => {
+    const mesh = child as Mesh;
+    if (mesh.isMesh) {
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+    }
+  });
+  return model;
 }
 
 function addPhotoSprite(
@@ -815,12 +959,16 @@ function createLandscapeModel(
   material: PlanLandscapeMaterial,
   center: { x: number; z: number },
 ): Group {
-  const { THREE, textures } = runtime;
+  const { THREE, textures, modelTemplates } = runtime;
   const group = new THREE.Group();
   const texture = material.planAssetUrl ? textures.get(material.planAssetUrl) : undefined;
   const width = Math.max(0.42, object.width);
 
-  if (["tree-canopy", "pine", "maple"].includes(material.id)) {
+  if (material.photoRender && material.sideAssetUrl) {
+    addCrossedPhotoPlant(runtime, group, material);
+  } else if (material.modelAssetUrl && modelTemplates.has(material.modelAssetUrl)) {
+    group.add(normalizeModel(runtime, modelTemplates.get(material.modelAssetUrl)!, material.id));
+  } else if (["tree-canopy", "pine", "maple"].includes(material.id)) {
     addTreeModel(runtime, group, material, texture, width);
   } else if (material.id === "lawn") {
     addLawnSurface(runtime, group, object, center);
@@ -849,7 +997,7 @@ function createLandscapeModel(
 
 function rebuildLandscape(runtime: SceneRuntime, objects: LandscapeObject[], selectedId: string | null) {
   const { THREE, landscapeRoot } = runtime;
-  clearGroup(landscapeRoot);
+  clearGroup(landscapeRoot, false);
   for (const object of objects) {
     const material = findLandscapeMaterial(object.materialId);
     if (!material) continue;
@@ -866,10 +1014,10 @@ function rebuildLandscape(runtime: SceneRuntime, objects: LandscapeObject[], sel
     model.position.set(point.x, groundOffset, point.z);
     landscapeRoot.add(model);
     if (object.id === selectedId) {
-      const radius = Math.max(0.65, Math.max(object.width, object.height) * object.scale * 0.62);
+      const radius = Math.max(0.65, Math.max(object.width, object.height) * object.scale * 0.58);
       const ring = new THREE.Mesh(
         new THREE.RingGeometry(radius, radius + 0.14, 48),
-        new THREE.MeshBasicMaterial({ color: 0xf3c74f, transparent: true, opacity: 0.92, side: THREE.DoubleSide }),
+        new THREE.MeshBasicMaterial({ color: 0xf3c74f, transparent: true, opacity: 0.95, side: THREE.DoubleSide }),
       );
       ring.rotation.x = -Math.PI / 2;
       ring.position.set(point.x, material.category === "paving" || material.id === "lawn" ? 0.07 : 0.035, point.z);
@@ -898,34 +1046,44 @@ function groundPoint(runtime: SceneRuntime, event: PointerEvent | DragEvent): Po
 export function SampleSchool3DScene({
   schoolName,
   objects,
+  surfaceStrokes,
   selectedId,
   activeMaterialId,
+  activeSurfaceId,
   cameraView,
   onPlace,
   onMove,
   onSelect,
+  onPaintSurface,
 }: {
   schoolName: string;
   objects: LandscapeObject[];
+  surfaceStrokes: SchoolSurfaceStroke[];
   selectedId: string | null;
   activeMaterialId: string | null;
+  activeSurfaceId: SchoolSurfaceMaterialId | null;
   cameraView: SampleSchoolCameraView;
   onPlace: (materialId: string, point: Point2D) => void;
   onMove: (objectId: string, point: Point2D) => void;
   onSelect: (objectId: string | null) => void;
+  onPaintSurface: SceneCallbacks["onPaintSurface"];
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<SceneRuntime | null>(null);
-  const callbacksRef = useRef<SceneCallbacks>({ onPlace, onMove, onSelect });
+  const callbacksRef = useRef<SceneCallbacks>({ onPlace, onMove, onSelect, onPaintSurface });
   const activeMaterialRef = useRef(activeMaterialId);
+  const activeSurfaceRef = useRef(activeSurfaceId);
   const objectsRef = useRef(objects);
+  const strokesRef = useRef(surfaceStrokes);
   const selectedIdRef = useRef(selectedId);
   const initialViewRef = useRef(cameraView);
   const [failed, setFailed] = useState(false);
 
-  useEffect(() => { callbacksRef.current = { onPlace, onMove, onSelect }; }, [onMove, onPlace, onSelect]);
+  useEffect(() => { callbacksRef.current = { onPlace, onMove, onSelect, onPaintSurface }; }, [onMove, onPaintSurface, onPlace, onSelect]);
   useEffect(() => { activeMaterialRef.current = activeMaterialId; }, [activeMaterialId]);
+  useEffect(() => { activeSurfaceRef.current = activeSurfaceId; }, [activeSurfaceId]);
   useEffect(() => { objectsRef.current = objects; }, [objects]);
+  useEffect(() => { strokesRef.current = surfaceStrokes; }, [surfaceStrokes]);
   useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
 
   useEffect(() => {
@@ -938,18 +1096,21 @@ export function SampleSchool3DScene({
     void (async () => {
       try {
         const THREE = await import("three");
-        const { OrbitControls } = await import("three/examples/jsm/controls/OrbitControls.js");
+        const [{ OrbitControls }, { GLTFLoader }] = await Promise.all([
+          import("three/examples/jsm/controls/OrbitControls.js"),
+          import("three/examples/jsm/loaders/GLTFLoader.js"),
+        ]);
         if (disposed) return;
 
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xdce8e5);
+        scene.background = new THREE.Color(0xe8efec);
         const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 120);
         const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFShadowMap;
-        renderer.domElement.setAttribute("aria-label", "조경 재료를 직접 배치하는 샘플 중학교 3D 캠퍼스");
+        renderer.domElement.setAttribute("aria-label", "빈 학교 부지에 바닥과 실제 조경 재료를 배치하는 3D 공간");
         renderer.domElement.style.touchAction = "none";
         host.appendChild(renderer.domElement);
 
@@ -958,8 +1119,8 @@ export function SampleSchool3DScene({
         controls.dampingFactor = 0.08;
         controls.enablePan = false;
 
-        scene.add(new THREE.HemisphereLight(0xf5f7ef, 0x556354, 1.7));
-        const sun = new THREE.DirectionalLight(0xfff3d0, 2.5);
+        scene.add(new THREE.HemisphereLight(0xffffff, 0x667165, 1.65));
+        const sun = new THREE.DirectionalLight(0xfff4dc, 2.35);
         sun.position.set(-12, 24, 13);
         sun.castShadow = true;
         sun.shadow.mapSize.set(2048, 2048);
@@ -969,8 +1130,9 @@ export function SampleSchool3DScene({
         sun.shadow.camera.bottom = -18;
         scene.add(sun);
 
+        const surfaceRoot = new THREE.Group();
         const landscapeRoot = new THREE.Group();
-        scene.add(landscapeRoot);
+        scene.add(surfaceRoot, landscapeRoot);
         const runtime: SceneRuntime = {
           THREE,
           scene,
@@ -978,29 +1140,46 @@ export function SampleSchool3DScene({
           renderer,
           controls,
           ground: null as unknown as Mesh,
+          surfaceRoot,
           landscapeRoot,
           raycaster: new THREE.Raycaster(),
           pointer: new THREE.Vector2(),
           textures: new Map(),
+          modelTemplates: new Map(),
+          surfaceMaterials: new Map(),
           generatedTextures: [],
           lawnSurfaceTexture: null,
           pathSurfaceTexture: null,
           paverSurfaceTexture: null,
         };
-        runtime.ground = buildSampleCampus(runtime, schoolName);
-
         const textureLoader = new THREE.TextureLoader();
-        const assetUrls = [...new Set(LANDSCAPE_MATERIALS.map((material) => material.planAssetUrl).filter((url): url is string => Boolean(url)))];
-        await Promise.all(assetUrls.map(async (url) => {
+        const textureUrls = [...new Set([
+          ...CAMPUS_TEXTURE_URLS,
+          ...SAMPLE_SCHOOL_SURFACE_MATERIALS.map((material) => material.textureUrl),
+          ...LANDSCAPE_MATERIALS.flatMap((material) => [material.planAssetUrl, material.sideAssetUrl]).filter((url): url is string => Boolean(url)),
+        ])];
+        await Promise.all(textureUrls.map(async (url) => {
           try {
             const texture = await textureLoader.loadAsync(url);
             texture.colorSpace = THREE.SRGBColorSpace;
             texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
             runtime.textures.set(url, texture);
           } catch {
-            // The procedural 3D model remains usable if an optional photo texture fails.
+            // One failed optional texture must not block the lesson.
           }
         }));
+
+        const gltfLoader = new GLTFLoader();
+        const modelUrls = [...new Set(LANDSCAPE_MATERIALS.map((material) => material.modelAssetUrl).filter((url): url is string => Boolean(url)))];
+        await Promise.all(modelUrls.map(async (url) => {
+          try {
+            const gltf = await gltfLoader.loadAsync(url);
+            runtime.modelTemplates.set(url, gltf.scene);
+          } catch {
+            // Photo fallback remains available when a model cannot load.
+          }
+        }));
+
         if (disposed) {
           for (const texture of runtime.textures.values()) texture.dispose();
           renderer.dispose();
@@ -1010,11 +1189,15 @@ export function SampleSchool3DScene({
         runtime.pathSurfaceTexture = createPavingTexture(runtime, "path");
         runtime.paverSurfaceTexture = createPavingTexture(runtime, "paver");
 
+        runtime.ground = buildSampleCampus(runtime, schoolName);
+        createSurfaceMaterials(runtime);
         runtimeRef.current = runtime;
+        rebuildSurfaces(runtime, strokesRef.current);
         rebuildLandscape(runtime, objectsRef.current, selectedIdRef.current);
         applyCamera(runtime, initialViewRef.current);
 
         let draggingId: string | null = null;
+        let paintingStrokeId: string | null = null;
         const selectObjectAtPointer = (event: PointerEvent): string | null => {
           if (!updatePointer(runtime, event)) return null;
           const hit = runtime.raycaster.intersectObject(runtime.landscapeRoot, true)
@@ -1022,6 +1205,19 @@ export function SampleSchool3DScene({
           return hit ? getLandscapeObjectId(hit.object) : null;
         };
         const handlePointerDown = (event: PointerEvent) => {
+          const surfaceId = activeSurfaceRef.current;
+          if (surfaceId) {
+            const point = groundPoint(runtime, event);
+            if (point && isSampleSchoolPlacementAllowed(point, 0)) {
+              event.preventDefault();
+              paintingStrokeId = `surface-stroke-${crypto.randomUUID()}`;
+              controls.enabled = false;
+              callbacksRef.current.onPaintSurface(paintingStrokeId, surfaceId, point, true);
+              renderer.domElement.setPointerCapture(event.pointerId);
+            }
+            return;
+          }
+
           const objectId = selectObjectAtPointer(event);
           if (objectId) {
             event.preventDefault();
@@ -1042,6 +1238,15 @@ export function SampleSchool3DScene({
           }
         };
         const handlePointerMove = (event: PointerEvent) => {
+          if (paintingStrokeId && activeSurfaceRef.current) {
+            event.preventDefault();
+            const point = groundPoint(runtime, event);
+            if (point && isSampleSchoolPlacementAllowed(point, 0)) {
+              callbacksRef.current.onPaintSurface(paintingStrokeId, activeSurfaceRef.current, point, false);
+            }
+            renderer.domElement.style.cursor = "crosshair";
+            return;
+          }
           if (draggingId) {
             event.preventDefault();
             const point = groundPoint(runtime, event);
@@ -1049,12 +1254,15 @@ export function SampleSchool3DScene({
             renderer.domElement.style.cursor = "grabbing";
             return;
           }
-          renderer.domElement.style.cursor = selectObjectAtPointer(event) ? "grab" : activeMaterialRef.current ? "crosshair" : "default";
+          renderer.domElement.style.cursor = selectObjectAtPointer(event)
+            ? "grab"
+            : activeSurfaceRef.current || activeMaterialRef.current ? "crosshair" : "default";
         };
-        const stopDragging = () => {
+        const stopPointerAction = () => {
           draggingId = null;
+          paintingStrokeId = null;
           controls.enabled = true;
-          renderer.domElement.style.cursor = activeMaterialRef.current ? "crosshair" : "default";
+          renderer.domElement.style.cursor = activeSurfaceRef.current || activeMaterialRef.current ? "crosshair" : "default";
         };
         const handleDragOver = (event: DragEvent) => {
           event.preventDefault();
@@ -1068,8 +1276,8 @@ export function SampleSchool3DScene({
         };
         renderer.domElement.addEventListener("pointerdown", handlePointerDown);
         renderer.domElement.addEventListener("pointermove", handlePointerMove);
-        renderer.domElement.addEventListener("pointerup", stopDragging);
-        renderer.domElement.addEventListener("pointercancel", stopDragging);
+        renderer.domElement.addEventListener("pointerup", stopPointerAction);
+        renderer.domElement.addEventListener("pointercancel", stopPointerAction);
         renderer.domElement.addEventListener("dragover", handleDragOver);
         renderer.domElement.addEventListener("drop", handleDrop);
 
@@ -1097,8 +1305,8 @@ export function SampleSchool3DScene({
           resizeObserver.disconnect();
           renderer.domElement.removeEventListener("pointerdown", handlePointerDown);
           renderer.domElement.removeEventListener("pointermove", handlePointerMove);
-          renderer.domElement.removeEventListener("pointerup", stopDragging);
-          renderer.domElement.removeEventListener("pointercancel", stopDragging);
+          renderer.domElement.removeEventListener("pointerup", stopPointerAction);
+          renderer.domElement.removeEventListener("pointercancel", stopPointerAction);
           renderer.domElement.removeEventListener("dragover", handleDragOver);
           renderer.domElement.removeEventListener("drop", handleDrop);
           controls.dispose();
@@ -1125,12 +1333,16 @@ export function SampleSchool3DScene({
   }, [objects, selectedId]);
 
   useEffect(() => {
+    if (runtimeRef.current) rebuildSurfaces(runtimeRef.current, surfaceStrokes);
+  }, [surfaceStrokes]);
+
+  useEffect(() => {
     initialViewRef.current = cameraView;
     applyCamera(runtimeRef.current, cameraView);
   }, [cameraView]);
 
   return (
-    <div ref={hostRef} className="sample-school-scene" role="application" aria-label="샘플 중학교 3D 조경 설계 공간">
+    <div ref={hostRef} className="sample-school-scene" role="application" aria-label="빈 학교 부지에 바닥과 조경 재료를 만드는 3D 조경 설계 공간">
       {failed ? <p className="sample-school-scene__error">이 기기에서는 3D 학교를 표시하지 못했습니다.</p> : null}
     </div>
   );

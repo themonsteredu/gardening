@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEMO_MINI_GARDEN_KIT } from "@/data/demo-mini-garden";
 import {
   getClassLandscapeGalleryStorageKey,
   getStudentLandscapeDesignStorageKey,
@@ -79,7 +80,7 @@ describe("student browser storage", () => {
       potPreset: { id: "pot-1", name: "사각형", shape: "square" as const, widthCm: 18, depthCm: 18, heightCm: 16 },
       materials: [],
     };
-    expect(parseStoredMiniGardenKits(JSON.stringify([kit]))).toEqual([kit]);
+    expect(parseStoredMiniGardenKits(JSON.stringify([kit]))).toEqual([kit, DEMO_MINI_GARDEN_KIT]);
     expect(parseStoredMiniGardenKits('{"invalid":true}')).toEqual([]);
     expect(upsertMiniGardenKit([kit], { ...kit, name: "조경키트 B" })[0].name).toBe("조경키트 B");
   });

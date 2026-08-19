@@ -1,4 +1,5 @@
 import type { SchoolProject, StudentSession } from "@/domain/models";
+import { DEMO_MINI_GARDEN_KIT } from "@/data/demo-mini-garden";
 
 export const DEMO_CLASS_CODE = "GARDEN24";
 
@@ -13,7 +14,7 @@ export const DEMO_PROJECT: SchoolProject = {
   status: "draft",
   createdAt: "2026-08-17T00:00:00.000Z",
   siteImageId: null,
-  miniGardenKitId: null,
+  miniGardenKitId: DEMO_MINI_GARDEN_KIT.id,
 };
 
 export const DEMO_STUDENTS: StudentSession[] = [

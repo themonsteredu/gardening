@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useRef, useState, type CSSProperties } from "react";
-import { MiniMaterialThumbnail } from "@/components/student/MiniMaterialThumbnail";
+import Image from "next/image";
+import { useMemo, useState, type CSSProperties } from "react";
+import { MiniMaterialTexture, MiniMaterialThumbnail } from "@/components/student/MiniMaterialThumbnail";
 import type { MiniGardenKit, MiniGardenMaterial, MiniGardenObject, MiniMaterialType, SchoolProject, StudentMiniGardenDesign } from "@/domain/models";
 import { createMiniGardenLayerSegments, getMiniGardenLayerTotalHeight, normalizeMiniGardenLayerOrder } from "@/lib/mini-garden-layers";
 import {
@@ -16,7 +17,7 @@ import {
   normalizeMiniGardenObject,
   updateMiniGardenObject,
 } from "@/lib/mini-garden-objects";
-import { clampMiniPotCamera, createMiniPotSceneDimensions } from "@/lib/mini-pot-scene";
+import { createMiniPotSceneDimensions } from "@/lib/mini-pot-scene";
 import {
   getStudentMiniGardenDesignStorageKey,
   MINI_GARDEN_KITS_STORAGE_KEY,
@@ -25,14 +26,6 @@ import {
 } from "@/lib/project-store";
 import { useBrowserStorageValue, writeBrowserStorage } from "@/lib/use-browser-storage";
 
-interface PotCamera {
-  tilt: number;
-  rotation: number;
-  zoom: number;
-  label: string;
-}
-
-const INITIAL_CAMERA: PotCamera = { tilt: 62, rotation: -24, zoom: 0.86, label: "입체 보기" };
 const LAYER_COLOR_FALLBACK = "#c8b38b";
 const OBJECT_TYPE_LABELS: Record<Exclude<MiniMaterialType, "layer">, string> = {
   scatter: "표면 재료",
@@ -83,9 +76,7 @@ function MiniGardenObjectWorkspace({ kit, nickname, sessionId, onBack, onContinu
     return { id: `mini-design-${sessionId}`, studentSessionId: sessionId, miniGardenKitId: kit.id, layers: [], objects: [], makingSteps: [], completedMakingStepIds: [], renderedImageUrl: null, finalPhotoUrl: null, finalPhotoStorageKey: null, finalPhotoName: null, finalPhotoMimeType: null, finalPhotoUploadedAt: null, finalComparisonChecklistIds: [], finalComparisonReflection: "", completedAt: null };
   }, [kit.id, sessionId, storedDesign]);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(design.objects[0]?.id ?? null);
-  const [camera, setCamera] = useState<PotCamera>(INITIAL_CAMERA);
   const [notice, setNotice] = useState("재료를 배치하면 자동으로 저장됩니다.");
-  const dragRef = useRef<{ pointerId: number; x: number; y: number; tilt: number; rotation: number } | null>(null);
   const pot = kit.potPreset;
   const scene = createMiniPotSceneDimensions(pot);
   const placementMaterials = kit.materials.filter((material) => material.type !== "layer");
@@ -93,7 +84,6 @@ function MiniGardenObjectWorkspace({ kit, nickname, sessionId, onBack, onContinu
   const orderedLayers = normalizeMiniGardenLayerOrder(design.layers);
   const layerSegments = createMiniGardenLayerSegments(orderedLayers, pot.heightCm);
   const surfaceHeight = getMiniGardenLayerTotalHeight(orderedLayers);
-  const surfaceRatio = Math.min(1, surfaceHeight / Math.max(0.5, pot.heightCm));
   const resolvedSelectedObjectId = design.objects.some((object) => object.id === selectedObjectId)
     ? selectedObjectId
     : design.objects.at(-1)?.id ?? null;
@@ -114,7 +104,7 @@ function MiniGardenObjectWorkspace({ kit, nickname, sessionId, onBack, onContinu
     const id = `mini-object-${crypto.randomUUID()}`;
     const position = getNextMiniGardenObjectPosition(design.objects.length);
     const actualScale = material.actualSizeCm
-      ? Math.max(MINI_GARDEN_OBJECT_MIN_SCALE, Math.min(MINI_GARDEN_OBJECT_MAX_SCALE, material.actualSizeCm / Math.max(2, pot.widthCm * 0.2)))
+      ? Math.max(MINI_GARDEN_OBJECT_MIN_SCALE, Math.min(MINI_GARDEN_OBJECT_MAX_SCALE, material.actualSizeCm / Math.max(4, pot.heightCm * 0.68)))
       : 1;
     const nextObject = normalizeMiniGardenObject({ id, materialId: material.id, ...position, z: surfaceHeight, scale: actualScale, rotationY: 0 });
     persistObjects([...design.objects, nextObject], `${material.name}을 화분 중앙에 배치했습니다.`);
@@ -153,18 +143,11 @@ function MiniGardenObjectWorkspace({ kit, nickname, sessionId, onBack, onContinu
     updateSelected({ x, y }, "배치 위치를 저장했습니다.");
   }
 
-  function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    const next = clampMiniPotCamera(drag.tilt - (event.clientY - drag.y) * 0.25, camera.zoom);
-    setCamera((current) => ({ ...current, rotation: drag.rotation + (event.clientX - drag.x) * 0.42, tilt: next.tilt, label: "직접 회전" }));
-  }
-
   const potStyle = {
     "--student-pot-width": `${scene.widthPixels}px`,
     "--student-pot-depth": `${scene.depthPixels}px`,
     "--student-pot-height": `${scene.heightPixels}px`,
-    transform: `rotateX(${camera.tilt}deg) rotateZ(${camera.rotation}deg) scale(${camera.zoom})`,
+    transform: "translate(-50%, -50%) scale(0.88)",
   } as CSSProperties;
 
   return (
@@ -186,14 +169,13 @@ function MiniGardenObjectWorkspace({ kit, nickname, sessionId, onBack, onContinu
         </aside>
 
         <section className="student-pot-viewport-panel student-object-viewport-panel">
-          <div className="student-pot-toolbar"><div><span>MINI GARDEN MODEL</span><strong>{camera.label}</strong></div><div><button type="button" className={camera.label === "정면 보기" ? "is-active" : ""} onClick={() => setCamera({ tilt: 78, rotation: 0, zoom: 0.86, label: "정면 보기" })}>정면</button><button type="button" className={camera.label === "측면 보기" ? "is-active" : ""} onClick={() => setCamera({ tilt: 78, rotation: 90, zoom: 0.86, label: "측면 보기" })}>측면</button><button type="button" className={camera.label === "위에서 보기" ? "is-active" : ""} onClick={() => setCamera({ tilt: 8, rotation: 0, zoom: 0.86, label: "위에서 보기" })}>위에서</button><button type="button" className={camera.label === "입체 보기" ? "is-active" : ""} onClick={() => setCamera(INITIAL_CAMERA)}>입체</button></div></div>
-          <div className="student-pot-viewport student-object-viewport" aria-label="식물과 장식이 배치된 회전 가능한 투명화분" onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, tilt: camera.tilt, rotation: camera.rotation }; }} onPointerMove={handlePointerMove} onPointerUp={() => { dragRef.current = null; }} onPointerCancel={() => { dragRef.current = null; }}>
+          <div className="student-pot-toolbar"><div><span>REAL MATERIAL MODEL</span><strong>실사 정면</strong></div></div>
+          <div className="student-pot-viewport student-object-viewport" aria-label="실제 재료 사진으로 꾸미는 긴 투명 꽃병">
             <div className="student-pot-grid-floor" />
-            <div className={`student-pot-model student-pot-model--${pot.shape}`} style={potStyle}>
-              <span className="student-pot-rim student-pot-rim--back" />
-              {layerSegments.map((segment, index) => { const layer = orderedLayers.find((item) => item.id === segment.id); const material = layer ? materialMap.get(layer.materialId) : null; const layerStyle = { "--sand-color": material?.color ?? LAYER_COLOR_FALLBACK, "--sand-bottom": `calc(var(--student-pot-height) * ${segment.bottomRatio})`, "--sand-height": `calc(var(--student-pot-height) * ${segment.heightRatio})`, "--sand-top": `calc(var(--student-pot-height) * ${segment.topRatio})` } as CSSProperties; return <span className="student-pot-sand-layer" style={layerStyle} key={segment.id}><i className="student-pot-sand-face student-pot-sand-face--front" /><i className="student-pot-sand-face student-pot-sand-face--back" /><i className="student-pot-sand-face student-pot-sand-face--left" /><i className="student-pot-sand-face student-pot-sand-face--right" />{index === layerSegments.length - 1 ? <i className="student-pot-sand-face student-pot-sand-face--top" /> : null}</span>; })}
-              {design.objects.map((object) => { const material = materialMap.get(object.materialId); if (!material || material.type === "layer") return null; const type = material.type; const objectStyle = { left: `${object.x}%`, top: `${object.y}%`, "--mini-object-z": `calc(var(--student-pot-height) * ${surfaceRatio} + 3px)`, "--mini-object-scale": object.scale, "--mini-object-rotation": `${object.rotationY}deg`, "--mini-object-color": material.color ?? OBJECT_TYPE_COLORS[type] } as CSSProperties; return <button type="button" aria-label={`${material.name} 배치물 선택`} className={`student-mini-object student-mini-object--${type} ${resolvedSelectedObjectId === object.id ? "is-selected" : ""}`} style={objectStyle} key={object.id} onPointerDown={(event) => event.stopPropagation()} onClick={() => setSelectedObjectId(object.id)}><span className="student-mini-object-form"><i /><i /><b /></span></button>; })}
-              <span className="student-pot-wall student-pot-wall--back" /><span className="student-pot-wall student-pot-wall--left" /><span className="student-pot-wall student-pot-wall--right" /><span className="student-pot-bottom" /><span className="student-pot-wall student-pot-wall--front" /><span className="student-pot-rim student-pot-rim--front" />
+            <div className={`student-pot-model student-pot-model--${pot.shape} student-pot-model--photo`} style={potStyle}>
+              {layerSegments.map((segment, index) => { const layer = orderedLayers.find((item) => item.id === segment.id); const material = layer ? materialMap.get(layer.materialId) : null; if (!material) return null; const layerStyle = { "--sand-color": material.color ?? LAYER_COLOR_FALLBACK, "--sand-bottom": `calc(var(--student-pot-height) * ${segment.bottomRatio})`, "--sand-height": `calc(var(--student-pot-height) * ${segment.heightRatio})`, "--sand-top": `calc(var(--student-pot-height) * ${segment.topRatio})` } as CSSProperties; return <MiniMaterialTexture className={`student-pot-sand-layer ${index === layerSegments.length - 1 ? "is-top" : ""}`} style={layerStyle} material={material} key={segment.id} />; })}
+              <Image className="student-pot-photo-asset student-pot-photo-asset--glass" src="/assets/photoreal/tall-clear-glass-vase-v2.png" alt="꽃과 장식이 배치된 실제 모습의 긴 투명 꽃병" fill sizes="420px" unoptimized />
+              {design.objects.map((object) => { const material = materialMap.get(object.materialId); if (!material || material.type === "layer") return null; const type = material.type; const objectStyle = { left: `${object.x}%`, top: `${object.y}%`, "--mini-object-scale": object.scale, "--mini-object-rotation": `${object.rotationY}deg` } as CSSProperties; return <button type="button" aria-label={`${material.name} 배치물 선택`} className={`student-mini-object student-mini-object--${type} ${resolvedSelectedObjectId === object.id ? "is-selected" : ""}`} style={objectStyle} key={object.id} onPointerDown={(event) => event.stopPropagation()} onClick={() => setSelectedObjectId(object.id)}><MiniMaterialThumbnail material={material} /></button>; })}
             </div>
             <div className="student-object-scene-status"><strong>{design.objects.length}개 배치</strong><span>바닥층 {surfaceHeight}cm 위</span></div>
             <p>화분을 드래그해 배치를 여러 방향에서 확인하세요.</p>

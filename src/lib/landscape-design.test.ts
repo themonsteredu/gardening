@@ -7,6 +7,16 @@ import {
 } from "./landscape-design";
 
 describe("student landscape placement", () => {
+  it("offers several real-image tree and flower choices", () => {
+    const trees = LANDSCAPE_MATERIALS.filter((material) => material.pickerGroup === "trees");
+    const flowers = LANDSCAPE_MATERIALS.filter((material) => material.pickerGroup === "flowers");
+
+    expect(trees).toHaveLength(5);
+    expect(flowers).toHaveLength(5);
+    expect([...trees, ...flowers].every((material) => Boolean(material.planAssetUrl))).toBe(true);
+    expect(trees.every((material) => material.photoRender === "tree" && Boolean(material.sideAssetUrl))).toBe(true);
+  });
+
   it("uses real image assets for the student material palette", () => {
     const primaryIds = ["tree-canopy", "pine", "flower", "lawn", "bench", "rock", "dirt-path", "flower-bed"];
     const primaryMaterials = LANDSCAPE_MATERIALS.filter((material) => primaryIds.includes(material.id));
