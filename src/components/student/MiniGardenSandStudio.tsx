@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { useMemo, useState, type CSSProperties } from "react";
 import { MiniMaterialTexture, MiniMaterialThumbnail } from "@/components/student/MiniMaterialThumbnail";
+import { MiniPotPhoto } from "@/components/student/MiniPotPhoto";
 import type { MiniGardenKit, MiniGardenLayer, MiniGardenMaterial, SchoolProject, StudentMiniGardenDesign } from "@/domain/models";
 import {
   canAddMiniGardenLayer,
@@ -178,7 +178,7 @@ function MiniGardenSandWorkspace({ kit, nickname, sessionId, onBack, onContinue 
                 const layerStyle = { "--sand-bottom": `calc(var(--student-pot-height) * ${segment.bottomRatio})`, "--sand-height": `calc(var(--student-pot-height) * ${segment.heightRatio})`, "--sand-top": `calc(var(--student-pot-height) * ${segment.topRatio})`, "--sand-color": material.color ?? DEFAULT_LAYER_COLOR } as CSSProperties;
                 return <MiniMaterialTexture className={`student-pot-sand-layer ${resolvedSelectedLayerId === segment.id ? "is-selected" : ""} ${index === segments.length - 1 ? "is-top" : ""}`} style={layerStyle} material={material} key={segment.id} />;
               })}
-              <Image className="student-pot-photo-asset student-pot-photo-asset--glass" src="/assets/photoreal/tall-clear-glass-vase-v2.png" alt="모래층이 보이는 실제 모습의 긴 투명 꽃병" fill sizes="420px" unoptimized />
+              <MiniPotPhoto className="student-pot-photo-asset student-pot-photo-asset--glass" pot={pot} sizes="420px" />
             </div>
             <div className="student-sand-capacity"><span style={{ width: `${Math.min(100, (totalHeight / pot.heightCm) * 100)}%` }} /><strong>{totalHeight} / {pot.heightCm}cm</strong></div>
             <p>투명 옆면에서 층 높이와 순서를 확인하세요.</p>

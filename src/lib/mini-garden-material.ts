@@ -16,7 +16,7 @@ export const MINI_MATERIAL_TYPE_DESCRIPTIONS: Record<MiniMaterialType, string> =
   scatter: "자갈·장식칩처럼 표면 영역에 펼칩니다.",
   object: "돌·조개·피규어처럼 하나씩 배치합니다.",
   plant: "기본 식물 모델과 연결해 배치합니다.",
-  structure: "벤치·울타리·팻말처럼 공간에 놓습니다.",
+  structure: "수업에서 실제 제공하는 작은 구조물을 사진으로 등록합니다.",
 };
 
 const MIME_BY_EXTENSION: Record<string, string> = {

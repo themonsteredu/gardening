@@ -85,6 +85,30 @@ describe("student browser storage", () => {
     expect(upsertMiniGardenKit([kit], { ...kit, name: "조경키트 B" })[0].name).toBe("조경키트 B");
   });
 
+  it("removes the legacy mini bench from saved mini garden kits", () => {
+    const legacyKit = {
+      ...DEMO_MINI_GARDEN_KIT,
+      materials: [
+        ...DEMO_MINI_GARDEN_KIT.materials,
+        {
+          id: "demo-mini-bench",
+          name: "미니 벤치",
+          type: "structure" as const,
+          photoUrl: null,
+          photoStorageKey: null,
+          photoMimeType: null,
+          photoName: null,
+          modelAssetUrl: null,
+          color: null,
+          availableQuantity: 1,
+          actualSizeCm: 6,
+        },
+      ],
+    };
+    const parsed = parseStoredMiniGardenKits(JSON.stringify([legacyKit]));
+    expect(parsed[0].materials.some((material) => material.id === "demo-mini-bench")).toBe(false);
+  });
+
   it("parses a student mini garden design with layer data", () => {
     const design = {
       id: "mini-design-1",

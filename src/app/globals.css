@@ -7956,6 +7956,56 @@ textarea:focus-visible {
 .pot-dimension-fields dt { color: var(--muted); }
 .pot-dimension-fields dd { margin: 0; font-weight: 800; }
 
+.pot-dimension-fields .pot-photo-setting {
+  display: block;
+  margin-top: 1rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid #d8dcd5;
+}
+
+.pot-photo-setting > strong,
+.pot-photo-setting > p {
+  display: block;
+}
+
+.pot-photo-setting > strong {
+  font-size: 0.6rem;
+}
+
+.pot-photo-setting > p {
+  margin: 0.25rem 0 0.55rem;
+  color: var(--muted);
+  font-size: 0.5rem;
+  line-height: 1.55;
+}
+
+.pot-photo-setting > div {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.pot-photo-setting button {
+  flex: 1;
+  padding: 0.55rem;
+  border: 1px solid #748a7c;
+  background: #fff;
+  color: #294637;
+  font: inherit;
+  font-size: 0.52rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.pot-photo-setting button:first-of-type {
+  background: #315d43;
+  color: #fff;
+}
+
+.pot-photo-setting button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
 .kit-material-placeholder {
   display: flex;
   align-items: center;
@@ -10018,7 +10068,9 @@ textarea:focus-visible {
   border-radius: 50%;
   background: transparent;
   transform: translate(-50%, -50%) rotate(var(--mini-object-rotation)) scale(var(--mini-object-scale));
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
 
 .student-mini-object .student-object-thumbnail {
@@ -10063,6 +10115,21 @@ textarea:focus-visible {
 .student-mini-object.is-selected::after {
   border-color: #f3ff9a;
   box-shadow: 0 0 0 2px rgba(37, 83, 62, 0.8);
+}
+
+.student-mini-object__resize {
+  position: absolute;
+  z-index: 12;
+  right: -13px;
+  bottom: -13px;
+  width: 19px;
+  height: 19px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #315d43;
+  box-shadow: 0 0 0 2px #d9f16d, 0 3px 8px rgba(25, 51, 37, 0.28);
+  cursor: nwse-resize;
+  touch-action: none;
 }
 
 .student-mini-object--scatter {

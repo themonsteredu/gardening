@@ -14,6 +14,7 @@ import {
   validateMiniMaterialQuantity,
   validateMiniMaterialSize,
 } from "@/lib/mini-garden-material";
+import { removeMiniImageBackground } from "@/lib/mini-image-background";
 import { deleteMiniMaterialImage, getMiniMaterialImage, saveMiniMaterialImage } from "@/lib/mini-material-image-store";
 import {
   MINI_GARDEN_KITS_STORAGE_KEY,
@@ -27,9 +28,15 @@ import { useBrowserStorageValue, writeBrowserStorage } from "@/lib/use-browser-s
 const MATERIAL_TYPES = Object.keys(MINI_MATERIAL_TYPE_LABELS) as MiniMaterialType[];
 
 interface CandidatePhoto {
-  file: File;
+  sourceFile: File;
+  blob: Blob;
   mimeType: string;
   previewUrl: string;
+  backgroundRemoved: boolean;
+}
+
+function usesCutoutPhoto(type: MiniMaterialType): boolean {
+  return type === "object" || type === "plant" || type === "structure";
 }
 
 export function MiniGardenMaterialManager() {
@@ -124,29 +131,38 @@ function MaterialForm({ kit, material, onSave, notice }: { kit: MiniGardenKit; m
   const [quantity, setQuantity] = useState(material?.availableQuantity ?? 1);
   const [actualSize, setActualSize] = useState(material?.actualSizeCm?.toString() ?? "");
   const [color, setColor] = useState(material?.color ?? "#b8a47a");
-  const [modelAssetUrl, setModelAssetUrl] = useState(material?.modelAssetUrl ?? "plant-basic-01");
   const [dragActive, setDragActive] = useState(false);
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [processingPhoto, setProcessingPhoto] = useState(false);
 
   useEffect(() => () => { if (candidateUrlRef.current) URL.revokeObjectURL(candidateUrlRef.current); }, []);
 
-  async function selectFile(file: File) {
+  async function selectFile(file: File, nextType = type) {
     const error = validateMiniMaterialImage(file);
     if (error) { setFormError(error); return; }
     const mimeType = resolveMiniMaterialImageMimeType(file);
     if (!mimeType) return;
+    setProcessingPhoto(true);
+    const shouldRemoveBackground = usesCutoutPhoto(nextType);
+    let blob: Blob = file;
+    try {
+      if (shouldRemoveBackground) blob = await removeMiniImageBackground(file);
+    } catch {
+      setFormError("배경을 자동으로 지우지 못해 원본 사진을 사용합니다. 밝고 단순한 배경에서 다시 촬영하면 더 깔끔합니다.");
+    }
     if (candidateUrlRef.current) URL.revokeObjectURL(candidateUrlRef.current);
-    const previewUrl = URL.createObjectURL(file);
+    const previewUrl = URL.createObjectURL(blob);
     candidateUrlRef.current = previewUrl;
-    setCandidate({ file, mimeType, previewUrl });
-    setFormError("");
+    setCandidate({ sourceFile: file, blob, mimeType: shouldRemoveBackground && blob !== file ? "image/png" : mimeType, previewUrl, backgroundRemoved: shouldRemoveBackground && blob !== file });
+    if (shouldRemoveBackground && blob !== file) setFormError("");
+    setProcessingPhoto(false);
   }
 
   async function submit() {
     const availableQuantity = quantityMode === "unlimited" ? null : quantity;
     const actualSizeCm = actualSize.trim() ? Number(actualSize) : null;
-    if (!candidate && !material?.photoStorageKey) { setFormError("학생이 확인할 실제 재료 사진을 등록해 주세요."); return; }
+    if (type !== "layer" && !candidate && !material?.photoStorageKey) { setFormError("학생이 확인할 실제 재료 사진을 등록해 주세요."); return; }
     if (!name.trim()) { setFormError("재료 이름을 입력해 주세요."); return; }
     if (!validateMiniMaterialQuantity(availableQuantity)) { setFormError("사용 가능 수량은 1~99개로 입력해 주세요."); return; }
     if (!validateMiniMaterialSize(actualSizeCm)) { setFormError("실제 크기는 0보다 크고 100cm 이하로 입력해 주세요."); return; }
@@ -159,13 +175,13 @@ function MaterialForm({ kit, material, onSave, notice }: { kit: MiniGardenKit; m
     try {
       if (candidate) {
         const nextStorageKey = `mini-material-image-${crypto.randomUUID()}`;
-        await saveMiniMaterialImage(nextStorageKey, candidate.file);
+        await saveMiniMaterialImage(nextStorageKey, candidate.blob);
         if (photoStorageKey && photoStorageKey !== nextStorageKey) await deleteMiniMaterialImage(photoStorageKey).catch(() => undefined);
         photoStorageKey = nextStorageKey;
         photoMimeType = candidate.mimeType;
-        photoName = candidate.file.name;
+        photoName = candidate.backgroundRemoved ? `${candidate.sourceFile.name.replace(/\.[^.]+$/, "")}-cutout.png` : candidate.sourceFile.name;
       }
-      onSave({ id, name: name.trim(), type, photoUrl: null, photoStorageKey, photoMimeType, photoName, modelAssetUrl: type === "plant" || type === "structure" ? modelAssetUrl : null, color: type === "layer" || type === "scatter" ? color : null, availableQuantity, actualSizeCm });
+      onSave({ id, name: name.trim(), type, photoUrl: null, photoStorageKey, photoMimeType, photoName, modelAssetUrl: null, color: type === "layer" || type === "scatter" ? color : null, availableQuantity, actualSizeCm });
       setCandidate(null);
       if (candidateUrlRef.current) URL.revokeObjectURL(candidateUrlRef.current);
       candidateUrlRef.current = null;
@@ -181,22 +197,21 @@ function MaterialForm({ kit, material, onSave, notice }: { kit: MiniGardenKit; m
       <div className="kit-panel-title"><span>02</span><div><strong>{material ? "실제 재료 편집" : "새 실제 재료"}</strong><small>{kit.name}에 저장</small></div></div>
       <div className="material-form-top">
         <div className="material-photo-field">
-          <input ref={inputRef} className="visually-hidden" type="file" accept={MINI_MATERIAL_IMAGE_ACCEPT} aria-label="실제 재료 사진 파일 선택" onChange={(event) => { const file = event.target.files?.[0]; if (file) void selectFile(file); event.target.value = ""; }} />
-          {candidate ? <button className="material-photo-preview" type="button" onClick={() => inputRef.current?.click()}><Image src={candidate.previewUrl} alt="선택한 실제 재료 사진" fill sizes="360px" unoptimized /><span>사진 교체</span></button> : material?.photoStorageKey ? <button className="material-photo-preview" type="button" onClick={() => inputRef.current?.click()}><MiniMaterialPhoto material={material} large /><span>사진 교체</span></button> : <button className={`material-photo-dropzone ${dragActive ? "is-dragging" : ""}`} type="button" onClick={() => inputRef.current?.click()} onDragEnter={(event) => { event.preventDefault(); setDragActive(true); }} onDragOver={(event) => { event.preventDefault(); setDragActive(true); }} onDragLeave={() => setDragActive(false)} onDrop={(event) => { event.preventDefault(); setDragActive(false); const file = event.dataTransfer.files[0]; if (file) void selectFile(file); }}><span aria-hidden="true" /><strong>실제 재료 사진</strong><p>사진을 놓거나 눌러서 선택</p><small>JPG · PNG · WEBP / 최대 8MB</small></button>}
+          <input ref={inputRef} className="visually-hidden" type="file" accept={MINI_MATERIAL_IMAGE_ACCEPT} capture="environment" aria-label="실제 재료 사진 촬영 또는 파일 선택" onChange={(event) => { const file = event.target.files?.[0]; if (file) void selectFile(file); event.target.value = ""; }} />
+          {candidate ? <button className="material-photo-preview" type="button" onClick={() => inputRef.current?.click()}><Image src={candidate.previewUrl} alt="선택한 실제 재료 사진" fill sizes="360px" unoptimized /><span>{processingPhoto ? "배경 처리 중" : candidate.backgroundRemoved ? "배경 제거 완료 · 사진 교체" : "사진 교체"}</span></button> : material?.photoStorageKey ? <button className="material-photo-preview" type="button" onClick={() => inputRef.current?.click()}><MiniMaterialPhoto material={material} large /><span>사진 교체</span></button> : <button className={`material-photo-dropzone ${dragActive ? "is-dragging" : ""}`} type="button" onClick={() => inputRef.current?.click()} onDragEnter={(event) => { event.preventDefault(); setDragActive(true); }} onDragOver={(event) => { event.preventDefault(); setDragActive(true); }} onDragLeave={() => setDragActive(false)} onDrop={(event) => { event.preventDefault(); setDragActive(false); const file = event.dataTransfer.files[0]; if (file) void selectFile(file); }}><span aria-hidden="true" /><strong>{type === "layer" ? "가루 사진 (선택)" : "실제 재료 촬영·올리기"}</strong><p>{usesCutoutPhoto(type) ? "올리면 배경을 자동으로 지웁니다" : "사진을 놓거나 눌러서 선택"}</p><small>JPG · PNG · WEBP / 최대 8MB</small></button>}
         </div>
         <div className="material-basic-fields">
           <label><span>재료 이름</span><input value={name} maxLength={40} placeholder="예: 민트색 색모래" onChange={(event) => { setName(event.target.value); setFormError(""); }} /></label>
-          <fieldset><legend>재료 유형</legend><div>{MATERIAL_TYPES.map((item) => <button key={item} type="button" className={type === item ? "is-selected" : ""} aria-pressed={type === item} onClick={() => { setType(item); setFormError(""); }}><strong>{MINI_MATERIAL_TYPE_LABELS[item]}</strong><small>{MINI_MATERIAL_TYPE_DESCRIPTIONS[item]}</small></button>)}</div></fieldset>
+          <fieldset><legend>재료 유형</legend><div>{MATERIAL_TYPES.map((item) => <button key={item} type="button" className={type === item ? "is-selected" : ""} aria-pressed={type === item} onClick={() => { setType(item); setFormError(""); if (candidate) void selectFile(candidate.sourceFile, item); }}><strong>{MINI_MATERIAL_TYPE_LABELS[item]}</strong><small>{MINI_MATERIAL_TYPE_DESCRIPTIONS[item]}</small></button>)}</div></fieldset>
         </div>
       </div>
       <div className="material-detail-fields">
         <fieldset><legend>사용 가능 수량</legend><div className="material-quantity-options"><button type="button" className={quantityMode === "unlimited" ? "is-selected" : ""} onClick={() => setQuantityMode("unlimited")}>제한 없음</button><button type="button" className={quantityMode === "limited" ? "is-selected" : ""} onClick={() => setQuantityMode("limited")}>수량 지정</button>{quantityMode === "limited" ? <label><input type="number" min="1" max="99" value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} /> 개</label> : null}</div></fieldset>
         <label><span>실제 크기 <small>선택 입력</small></span><span><input type="number" min="0.1" max="100" step="0.1" value={actualSize} placeholder="예: 3" onChange={(event) => setActualSize(event.target.value)} /> cm</span></label>
-        {type === "layer" || type === "scatter" ? <label><span>대표 색상</span><span><input type="color" value={color} onChange={(event) => setColor(event.target.value)} /><code>{color}</code></span></label> : null}
-        {type === "plant" || type === "structure" ? <label><span>가장 비슷한 3D 모델</span><select value={modelAssetUrl} onChange={(event) => setModelAssetUrl(event.target.value)}>{type === "plant" ? <><option value="plant-basic-01">기본 식물 01</option><option value="plant-succulent-03">다육이 기본모델 03</option><option value="plant-grass-02">초화 기본모델 02</option></> : <><option value="structure-basic-01">기본 구조물 01</option><option value="structure-bench-01">미니 벤치</option><option value="structure-fence-01">미니 울타리</option></>}</select></label> : null}
+        {type === "layer" || type === "scatter" ? <label><span>가루·표면 색상 <small>언제든 변경 가능</small></span><span><input type="color" value={color} onChange={(event) => setColor(event.target.value)} /><code>{color}</code></span></label> : null}
       </div>
       <p className="material-form-status" role="status">{formError || notice}</p>
-      <footer><span>{material ? "사진을 바꾸지 않으면 기존 원본이 유지됩니다." : "사진 원본은 이 브라우저의 수업 데이터에 저장됩니다."}</span><button className="button button--primary" type="button" disabled={saving} onClick={() => void submit()}>{saving ? "저장하는 중" : material ? "변경사항 저장" : "키트에 재료 추가"}</button></footer>
+      <footer><span>{type === "layer" ? "가루는 색상만으로도 추가할 수 있습니다." : "배경을 지운 투명 이미지가 이 브라우저의 수업 데이터에 저장됩니다."}</span><button className="button button--primary" type="button" disabled={saving || processingPhoto} onClick={() => void submit()}>{saving ? "저장하는 중" : processingPhoto ? "사진 처리 중" : material ? "변경사항 저장" : "키트에 재료 추가"}</button></footer>
     </section>
   );
 }

@@ -166,6 +166,10 @@ export interface PotPreset {
   widthCm: number;
   depthCm: number;
   heightCm: number;
+  photoUrl?: string | null;
+  photoStorageKey?: string | null;
+  photoMimeType?: string | null;
+  photoName?: string | null;
 }
 
 export type MiniMaterialType =

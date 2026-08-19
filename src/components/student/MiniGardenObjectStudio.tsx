@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useRef, useState, type CSSProperties } from "react";
 import { MiniMaterialTexture, MiniMaterialThumbnail } from "@/components/student/MiniMaterialThumbnail";
+import { MiniPotPhoto } from "@/components/student/MiniPotPhoto";
 import type { MiniGardenKit, MiniGardenMaterial, MiniGardenObject, MiniMaterialType, SchoolProject, StudentMiniGardenDesign } from "@/domain/models";
 import { createMiniGardenLayerSegments, getMiniGardenLayerTotalHeight, normalizeMiniGardenLayerOrder } from "@/lib/mini-garden-layers";
 import {
@@ -41,6 +41,24 @@ const OBJECT_TYPE_COLORS: Record<Exclude<MiniMaterialType, "layer">, string> = {
 };
 const OBJECT_TYPES = Object.keys(OBJECT_TYPE_LABELS) as Array<Exclude<MiniMaterialType, "layer">>;
 
+interface DirectObjectGesture {
+  objectId: string;
+  pointerId: number;
+  mode: "move" | "resize";
+  startClientX: number;
+  startClientY: number;
+  startX: number;
+  startY: number;
+  startScale: number;
+  centerClientX: number;
+  centerClientY: number;
+  startDistance: number;
+  sceneWidth: number;
+  sceneHeight: number;
+  sourceObject: MiniGardenObject;
+  previewObject: MiniGardenObject;
+}
+
 export function MiniGardenObjectStudio({
   project,
   nickname,
@@ -77,6 +95,8 @@ function MiniGardenObjectWorkspace({ kit, nickname, sessionId, onBack, onContinu
   }, [kit.id, sessionId, storedDesign]);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(design.objects[0]?.id ?? null);
   const [notice, setNotice] = useState("재료를 배치하면 자동으로 저장됩니다.");
+  const [directPreview, setDirectPreview] = useState<MiniGardenObject | null>(null);
+  const directGestureRef = useRef<DirectObjectGesture | null>(null);
   const pot = kit.potPreset;
   const scene = createMiniPotSceneDimensions(pot);
   const placementMaterials = kit.materials.filter((material) => material.type !== "layer");
@@ -143,6 +163,73 @@ function MiniGardenObjectWorkspace({ kit, nickname, sessionId, onBack, onContinu
     updateSelected({ x, y }, "배치 위치를 저장했습니다.");
   }
 
+  function beginDirectGesture(
+    event: React.PointerEvent<HTMLElement>,
+    object: MiniGardenObject,
+    mode: DirectObjectGesture["mode"],
+  ) {
+    const sceneElement = event.currentTarget.closest(".student-pot-model");
+    if (!(sceneElement instanceof HTMLElement)) return;
+    const rect = sceneElement.getBoundingClientRect();
+    const centerClientX = rect.left + (object.x / 100) * rect.width;
+    const centerClientY = rect.top + (object.y / 100) * rect.height;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setSelectedObjectId(object.id);
+    directGestureRef.current = {
+      objectId: object.id,
+      pointerId: event.pointerId,
+      mode,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startX: object.x,
+      startY: object.y,
+      startScale: object.scale,
+      centerClientX,
+      centerClientY,
+      startDistance: Math.max(12, Math.hypot(event.clientX - centerClientX, event.clientY - centerClientY)),
+      sceneWidth: rect.width,
+      sceneHeight: rect.height,
+      sourceObject: object,
+      previewObject: object,
+    };
+    setDirectPreview(object);
+  }
+
+  function continueDirectGesture(event: React.PointerEvent<HTMLElement>) {
+    const gesture = directGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (gesture.mode === "move") {
+      const x = gesture.startX + ((event.clientX - gesture.startClientX) / gesture.sceneWidth) * 100;
+      const y = gesture.startY + ((event.clientY - gesture.startClientY) / gesture.sceneHeight) * 100;
+      gesture.previewObject = normalizeMiniGardenObject({ ...gesture.sourceObject, x, y });
+      setDirectPreview(gesture.previewObject);
+      return;
+    }
+    const distance = Math.hypot(event.clientX - gesture.centerClientX, event.clientY - gesture.centerClientY);
+    const scale = gesture.startScale * (distance / gesture.startDistance);
+    gesture.previewObject = normalizeMiniGardenObject({ ...gesture.sourceObject, scale });
+    setDirectPreview(gesture.previewObject);
+  }
+
+  function finishDirectGesture(event: React.PointerEvent<HTMLElement>) {
+    const gesture = directGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    const preview = gesture.previewObject;
+    persistObjects(
+      updateMiniGardenObject(design.objects, gesture.objectId, { x: preview.x, y: preview.y, scale: preview.scale }),
+      gesture.mode === "move" ? "재료 위치를 저장했습니다." : "재료 크기를 저장했습니다.",
+    );
+    directGestureRef.current = null;
+    setDirectPreview(null);
+  }
+
   const potStyle = {
     "--student-pot-width": `${scene.widthPixels}px`,
     "--student-pot-depth": `${scene.depthPixels}px`,
@@ -174,11 +261,19 @@ function MiniGardenObjectWorkspace({ kit, nickname, sessionId, onBack, onContinu
             <div className="student-pot-grid-floor" />
             <div className={`student-pot-model student-pot-model--${pot.shape} student-pot-model--photo`} style={potStyle}>
               {layerSegments.map((segment, index) => { const layer = orderedLayers.find((item) => item.id === segment.id); const material = layer ? materialMap.get(layer.materialId) : null; if (!material) return null; const layerStyle = { "--sand-color": material.color ?? LAYER_COLOR_FALLBACK, "--sand-bottom": `calc(var(--student-pot-height) * ${segment.bottomRatio})`, "--sand-height": `calc(var(--student-pot-height) * ${segment.heightRatio})`, "--sand-top": `calc(var(--student-pot-height) * ${segment.topRatio})` } as CSSProperties; return <MiniMaterialTexture className={`student-pot-sand-layer ${index === layerSegments.length - 1 ? "is-top" : ""}`} style={layerStyle} material={material} key={segment.id} />; })}
-              <Image className="student-pot-photo-asset student-pot-photo-asset--glass" src="/assets/photoreal/tall-clear-glass-vase-v2.png" alt="꽃과 장식이 배치된 실제 모습의 긴 투명 꽃병" fill sizes="420px" unoptimized />
-              {design.objects.map((object) => { const material = materialMap.get(object.materialId); if (!material || material.type === "layer") return null; const type = material.type; const objectStyle = { left: `${object.x}%`, top: `${object.y}%`, "--mini-object-scale": object.scale, "--mini-object-rotation": `${object.rotationY}deg` } as CSSProperties; return <button type="button" aria-label={`${material.name} 배치물 선택`} className={`student-mini-object student-mini-object--${type} ${resolvedSelectedObjectId === object.id ? "is-selected" : ""}`} style={objectStyle} key={object.id} onPointerDown={(event) => event.stopPropagation()} onClick={() => setSelectedObjectId(object.id)}><MiniMaterialThumbnail material={material} /></button>; })}
+              <MiniPotPhoto className="student-pot-photo-asset student-pot-photo-asset--glass" pot={pot} sizes="420px" />
+              {design.objects.map((object) => {
+                const displayObject = directPreview?.id === object.id ? directPreview : object;
+                const material = materialMap.get(displayObject.materialId);
+                if (!material || material.type === "layer") return null;
+                const type = material.type;
+                const selected = resolvedSelectedObjectId === displayObject.id;
+                const objectStyle = { left: `${displayObject.x}%`, top: `${displayObject.y}%`, "--mini-object-scale": displayObject.scale, "--mini-object-rotation": `${displayObject.rotationY}deg` } as CSSProperties;
+                return <button type="button" aria-label={`${material.name} 배치물 이동`} className={`student-mini-object student-mini-object--${type} ${selected ? "is-selected" : ""}`} style={objectStyle} key={displayObject.id} onPointerDown={(event) => beginDirectGesture(event, displayObject, "move")} onPointerMove={continueDirectGesture} onPointerUp={finishDirectGesture} onPointerCancel={finishDirectGesture} onClick={() => setSelectedObjectId(displayObject.id)}><MiniMaterialThumbnail material={material} />{selected ? <span className="student-mini-object__resize" title="끌어서 크기 조절" onPointerDown={(event) => beginDirectGesture(event, displayObject, "resize")} onPointerMove={continueDirectGesture} onPointerUp={finishDirectGesture} onPointerCancel={finishDirectGesture} /> : null}</button>;
+              })}
             </div>
             <div className="student-object-scene-status"><strong>{design.objects.length}개 배치</strong><span>바닥층 {surfaceHeight}cm 위</span></div>
-            <p>화분을 드래그해 배치를 여러 방향에서 확인하세요.</p>
+            <p>재료를 끌어 이동하고, 선택 테두리의 점을 끌어 크기를 바꾸세요.</p>
           </div>
         </section>
 

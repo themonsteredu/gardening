@@ -1,11 +1,14 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { MiniPotPhoto } from "@/components/student/MiniPotPhoto";
 import { POT_PRESETS, POT_SHAPE_LABELS, estimatePotVolumeLiters, isValidPotDimension } from "@/data/pot-presets";
 import type { MiniGardenKit, PotPreset, PotShape, SchoolProject } from "@/domain/models";
+import { MINI_MATERIAL_IMAGE_ACCEPT, resolveMiniMaterialImageMimeType, validateMiniMaterialImage } from "@/lib/mini-garden-material";
+import { removeMiniImageBackground } from "@/lib/mini-image-background";
+import { deleteMiniMaterialImage, saveMiniMaterialImage } from "@/lib/mini-material-image-store";
 import {
   MINI_GARDEN_KITS_STORAGE_KEY,
   parseStoredMiniGardenKits,
@@ -16,6 +19,13 @@ import {
 import { useBrowserStorageValue, writeBrowserStorage } from "@/lib/use-browser-storage";
 
 const NEW_KIT_SELECTION = "__new-kit__";
+
+interface PotPhotoCandidate {
+  blob: Blob;
+  mimeType: string;
+  name: string;
+  previewUrl: string;
+}
 
 export function MiniGardenKitEditor() {
   const projectValue = useBrowserStorageValue("local", PROJECT_STORAGE_KEY);
@@ -88,6 +98,8 @@ export function MiniGardenKitEditor() {
 
 function KitForm({ kit, onSave, notice }: { kit: MiniGardenKit | null; onSave: (kit: MiniGardenKit) => void; notice: string }) {
   const initialPot = kit?.potPreset ?? POT_PRESETS[0];
+  const potPhotoInputRef = useRef<HTMLInputElement>(null);
+  const potPhotoUrlRef = useRef<string | null>(null);
   const [name, setName] = useState(kit?.name ?? "");
   const [shape, setShape] = useState<PotShape>(initialPot.shape);
   const [presetId, setPresetId] = useState(initialPot.id);
@@ -96,9 +108,48 @@ function KitForm({ kit, onSave, notice }: { kit: MiniGardenKit | null; onSave: (
   const [heightCm, setHeightCm] = useState(initialPot.heightCm);
   const [saveAsNew, setSaveAsNew] = useState(false);
   const [formError, setFormError] = useState("");
+  const [potPhoto, setPotPhoto] = useState<PotPhotoCandidate | null>(null);
+  const [removeStoredPotPhoto, setRemoveStoredPotPhoto] = useState(false);
+  const [processingPhoto, setProcessingPhoto] = useState(false);
   const dimensionsValid = [widthCm, depthCm, heightCm].every(isValidPotDimension);
-  const currentPot: PotPreset = { id: presetId, name: POT_SHAPE_LABELS[shape], shape, widthCm, depthCm, heightCm };
+  const currentPot: PotPreset = {
+    id: presetId,
+    name: POT_SHAPE_LABELS[shape],
+    shape,
+    widthCm,
+    depthCm,
+    heightCm,
+    photoUrl: removeStoredPotPhoto ? null : initialPot.photoUrl ?? null,
+    photoStorageKey: removeStoredPotPhoto ? null : initialPot.photoStorageKey ?? null,
+    photoMimeType: removeStoredPotPhoto ? null : initialPot.photoMimeType ?? null,
+    photoName: removeStoredPotPhoto ? null : initialPot.photoName ?? null,
+  };
   const volume = estimatePotVolumeLiters(currentPot);
+
+  useEffect(() => () => {
+    if (potPhotoUrlRef.current) URL.revokeObjectURL(potPhotoUrlRef.current);
+  }, []);
+
+  async function selectPotPhoto(file: File) {
+    const error = validateMiniMaterialImage(file);
+    if (error) { setFormError(error); return; }
+    const sourceMimeType = resolveMiniMaterialImageMimeType(file);
+    if (!sourceMimeType) return;
+    setProcessingPhoto(true);
+    setFormError("");
+    try {
+      const blob = await removeMiniImageBackground(file);
+      if (potPhotoUrlRef.current) URL.revokeObjectURL(potPhotoUrlRef.current);
+      const previewUrl = URL.createObjectURL(blob);
+      potPhotoUrlRef.current = previewUrl;
+      setPotPhoto({ blob, mimeType: "image/png", name: `${file.name.replace(/\.[^.]+$/, "")}-cutout.png`, previewUrl });
+      setRemoveStoredPotPhoto(false);
+    } catch {
+      setFormError("컵 사진의 배경을 지우지 못했습니다. 밝고 단순한 배경에서 다시 촬영해 주세요.");
+    } finally {
+      setProcessingPhoto(false);
+    }
+  }
 
   function applyPreset(preset: PotPreset) {
     setShape(preset.shape);
@@ -109,7 +160,7 @@ function KitForm({ kit, onSave, notice }: { kit: MiniGardenKit | null; onSave: (
     setFormError("");
   }
 
-  function submit() {
+  async function submit() {
     if (!name.trim()) {
       setFormError("수업에서 구분할 수 있는 키트 이름을 입력해 주세요.");
       return;
@@ -119,14 +170,35 @@ function KitForm({ kit, onSave, notice }: { kit: MiniGardenKit | null; onSave: (
       return;
     }
     const id = kit && !saveAsNew ? kit.id : `mini-kit-${crypto.randomUUID()}`;
-    onSave({
-      id,
-      name: name.trim(),
-      potPreset: { ...currentPot, id: `${presetId}-${id}`, name: `${POT_SHAPE_LABELS[shape]} ${widthCm}cm` },
-      materials: kit?.materials ?? [],
-    });
-    setSaveAsNew(false);
-    setFormError("");
+    let photoStorageKey = currentPot.photoStorageKey ?? null;
+    let photoMimeType = currentPot.photoMimeType ?? null;
+    let photoName = currentPot.photoName ?? null;
+    try {
+      if (potPhoto) {
+        photoStorageKey = `mini-pot-image-${crypto.randomUUID()}`;
+        await saveMiniMaterialImage(photoStorageKey, potPhoto.blob);
+        photoMimeType = potPhoto.mimeType;
+        photoName = potPhoto.name;
+      }
+      onSave({
+        id,
+        name: name.trim(),
+        potPreset: { ...currentPot, id: `${presetId}-${id}`, name: `${POT_SHAPE_LABELS[shape]} ${widthCm}cm`, photoStorageKey, photoMimeType, photoName },
+        materials: kit?.materials ?? [],
+      });
+      const previousKey = initialPot.photoStorageKey;
+      if (previousKey && !saveAsNew && (removeStoredPotPhoto || (photoStorageKey && photoStorageKey !== previousKey))) {
+        await deleteMiniMaterialImage(previousKey).catch(() => undefined);
+      }
+      if (potPhotoUrlRef.current) URL.revokeObjectURL(potPhotoUrlRef.current);
+      potPhotoUrlRef.current = null;
+      setPotPhoto(null);
+      setRemoveStoredPotPhoto(false);
+      setSaveAsNew(false);
+      setFormError("");
+    } catch {
+      setFormError("실제 컵 사진을 저장하지 못했습니다. 브라우저 저장 공간을 확인해 주세요.");
+    }
   }
 
   return (
@@ -135,7 +207,7 @@ function KitForm({ kit, onSave, notice }: { kit: MiniGardenKit | null; onSave: (
       <label className="kit-name-field"><span>키트 이름</span><input value={name} maxLength={50} placeholder="예: 푸른솔중 미니조경 키트 A" onChange={(event) => { setName(event.target.value); setFormError(""); }} /></label>
       <fieldset className="pot-preset-fieldset"><legend>투명화분 형태</legend><div>{POT_PRESETS.map((preset) => <button key={preset.id} type="button" className={shape === preset.shape ? "is-selected" : ""} aria-pressed={shape === preset.shape} onClick={() => applyPreset(preset)}><span className={`pot-preset-icon pot-preset-icon--${preset.shape}`} aria-hidden="true" /><strong>{POT_SHAPE_LABELS[preset.shape]}</strong><small>{preset.widthCm}×{preset.depthCm}×{preset.heightCm}cm</small></button>)}</div></fieldset>
       <div className="pot-configuration-row">
-        <TransparentPotPreview pot={currentPot} />
+        <TransparentPotPreview pot={currentPot} previewUrl={potPhoto?.previewUrl ?? null} />
         <div className="pot-dimension-fields">
           <strong>실제 화분 크기</strong>
           <p>프리셋을 선택한 후 실물 측정값으로 수정할 수 있습니다.</p>
@@ -145,19 +217,25 @@ function KitForm({ kit, onSave, notice }: { kit: MiniGardenKit | null; onSave: (
             <label><span>높이</span><span><input type="number" min="5" max="60" value={heightCm} onChange={(event) => { setHeightCm(Number(event.target.value)); setFormError(""); }} /> cm</span></label>
           </div>
           <dl><div><dt>예상 내부 용량</dt><dd>약 {volume}L</dd></div><div><dt>등록 재료</dt><dd>{kit?.materials.length ?? 0}종</dd></div></dl>
+          <div className="pot-photo-setting">
+            <input ref={potPhotoInputRef} className="visually-hidden" type="file" accept={MINI_MATERIAL_IMAGE_ACCEPT} capture="environment" aria-label="실제 컵 사진 촬영 또는 선택" onChange={(event) => { const file = event.target.files?.[0]; if (file) void selectPotPhoto(file); event.target.value = ""; }} />
+            <strong>실제 컵 사진</strong>
+            <p>수업에서 쓸 컵을 촬영하면 배경을 자동으로 지워 학생 화면에 사용합니다.</p>
+            <div><button type="button" onClick={() => potPhotoInputRef.current?.click()} disabled={processingPhoto}>{processingPhoto ? "배경 지우는 중" : potPhoto || currentPot.photoStorageKey ? "컵 사진 바꾸기" : "컵 사진 추가"}</button>{potPhoto || currentPot.photoStorageKey ? <button type="button" onClick={() => { if (potPhotoUrlRef.current) URL.revokeObjectURL(potPhotoUrlRef.current); potPhotoUrlRef.current = null; setPotPhoto(null); setRemoveStoredPotPhoto(true); }}>기본 이미지 사용</button> : null}</div>
+          </div>
         </div>
       </div>
       <div className="kit-material-placeholder"><div><span>STEP 10</span><strong>오늘 제공할 실제 재료</strong><p>키트를 저장한 뒤 실제 모래·자갈·식물 사진과 수량을 추가합니다.</p></div>{kit ? <Link href="/teacher/mini-garden-materials">+ 실제 재료 추가</Link> : <button type="button" disabled>키트 저장 후 준비</button>}</div>
       <p className="kit-form-status" role="status">{formError || notice}</p>
       <footer className="kit-form-actions">
         {kit ? <button type="button" className="button button--quiet" onClick={() => { setSaveAsNew(true); setName(`${name} 복사본`); }}>새 키트로 복사</button> : <span />}
-        <button type="button" className="button button--primary" onClick={submit}>{saveAsNew ? "복사본 저장" : kit ? "변경사항 저장" : "키트 저장"}</button>
+        <button type="button" className="button button--primary" disabled={processingPhoto} onClick={() => void submit()}>{saveAsNew ? "복사본 저장" : kit ? "변경사항 저장" : "키트 저장"}</button>
       </footer>
     </section>
   );
 }
 
-function TransparentPotPreview({ pot }: { pot: PotPreset }) {
+function TransparentPotPreview({ pot, previewUrl }: { pot: PotPreset; previewUrl: string | null }) {
   const widthRatio = Math.max(0.55, Math.min(1, pot.widthCm / 28));
   const heightRatio = Math.max(0.45, Math.min(1, pot.heightCm / 26));
   const isTall = pot.shape === "tall_cylinder";
@@ -165,7 +243,7 @@ function TransparentPotPreview({ pot }: { pot: PotPreset }) {
     <div className="pot-preview-card">
       <div className="pot-preview-stage">
         <div className={`pot-photo-preview ${isTall ? "is-tall" : "is-low"}`} style={{ width: `${Math.round(widthRatio * (isTall ? 150 : 220))}px`, height: `${Math.round(heightRatio * (isTall ? 235 : 150))}px` }}>
-          <Image src={isTall ? "/assets/photoreal/tall-clear-glass-vase-v2.png" : "/assets/photoreal/clear-glass-vase.png"} alt={`${POT_SHAPE_LABELS[pot.shape]} 실제 화분 미리보기`} fill sizes="220px" unoptimized />
+          <MiniPotPhoto pot={pot} previewUrl={previewUrl} sizes="220px" />
         </div>
         <span className="pot-width-guide">{pot.widthCm}cm</span><span className="pot-height-guide">{pot.heightCm}cm</span>
       </div>

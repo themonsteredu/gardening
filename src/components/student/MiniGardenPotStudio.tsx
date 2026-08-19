@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { useMemo, useState, type CSSProperties } from "react";
+import { MiniPotPhoto } from "@/components/student/MiniPotPhoto";
 import { POT_SHAPE_LABELS, estimatePotVolumeLiters } from "@/data/pot-presets";
 import type { MiniGardenKit, SchoolProject } from "@/domain/models";
 import { createMiniPotSceneDimensions } from "@/lib/mini-pot-scene";
@@ -68,7 +68,7 @@ function MiniGardenPotWorkspace({ kit, nickname, onBack, onContinue }: { kit: Mi
           <div className="student-pot-viewport" aria-label="긴 투명 꽃병 실사 미리보기">
             <div className="student-pot-grid-floor" />
             <div className={`student-pot-model student-pot-model--${pot.shape} student-pot-model--photo`} style={potStyle}>
-              <Image className="student-pot-photo-asset" src="/assets/photoreal/tall-clear-glass-vase-v2.png" alt="실제 모습의 긴 투명 꽃병" fill sizes="420px" unoptimized priority />
+              <MiniPotPhoto className="student-pot-photo-asset" pot={pot} sizes="420px" priority />
               <span className="student-pot-fill-guide"><i />꽃과 재료가 들어갈 공간</span>
             </div>
             <span className="student-pot-width-label">가로 {pot.widthCm}cm</span><span className="student-pot-depth-label">세로 {pot.depthCm}cm</span><span className="student-pot-height-label">높이 {pot.heightCm}cm</span>

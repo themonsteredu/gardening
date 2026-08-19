@@ -126,7 +126,10 @@ export function parseStoredMiniGardenKits(value: string | null): MiniGardenKit[]
       && typeof kit.potPreset.depthCm === "number"
       && typeof kit.potPreset.heightCm === "number"
       && Array.isArray(kit.materials),
-    );
+    ).map((kit) => ({
+      ...kit,
+      materials: kit.materials.filter((material) => material.id !== "demo-mini-bench"),
+    }));
     return validKits.some((kit) => kit.id === DEMO_MINI_GARDEN_KIT.id)
       ? validKits
       : [...validKits, DEMO_MINI_GARDEN_KIT];
