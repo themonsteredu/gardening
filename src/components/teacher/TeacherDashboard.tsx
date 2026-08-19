@@ -1,7 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { type ChangeEvent, useMemo, useRef, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { DEMO_PROJECT, DEMO_STUDENTS } from "@/data/demo-project";
 import {
@@ -9,6 +10,11 @@ import {
   type SchoolProject,
 } from "@/domain/models";
 import { generateClassCode } from "@/lib/class-code";
+import {
+  createSchoolLogoDataUrl,
+  SCHOOL_LOGO_ACCEPT,
+  validateSchoolLogo,
+} from "@/lib/school-logo";
 import {
   parseStoredProject,
   parseStoredMiniGardenKits,
@@ -24,6 +30,8 @@ type TeacherTab = "setup" | "students" | "gallery";
 
 interface ProjectFormState {
   schoolName: string;
+  schoolLogoDataUrl: string | null;
+  schoolLogoName: string | null;
   className: string;
   title: string;
   mission: string;
@@ -33,8 +41,12 @@ export function TeacherDashboard() {
   const [tab, setTab] = useState<TeacherTab>("setup");
   const [editorOpen, setEditorOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [logoStatus, setLogoStatus] = useState("");
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<ProjectFormState>({
     schoolName: DEMO_PROJECT.schoolName,
+    schoolLogoDataUrl: DEMO_PROJECT.schoolLogoDataUrl ?? null,
+    schoolLogoName: DEMO_PROJECT.schoolLogoName ?? null,
     className: DEMO_PROJECT.className,
     title: DEMO_PROJECT.title,
     mission: DEMO_PROJECT.mission,
@@ -62,11 +74,42 @@ export function TeacherDashboard() {
   function openEditor() {
     setForm({
       schoolName: project.schoolName,
+      schoolLogoDataUrl: project.schoolLogoDataUrl ?? null,
+      schoolLogoName: project.schoolLogoName ?? null,
       className: project.className,
       title: project.title,
       mission: project.mission,
     });
+    setLogoStatus("");
     setEditorOpen(true);
+  }
+
+  async function handleLogoSelect(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const validationError = validateSchoolLogo(file);
+    if (validationError) {
+      setLogoStatus(validationError);
+      return;
+    }
+    setLogoStatus("로고를 준비하고 있어요.");
+    try {
+      const schoolLogoDataUrl = await createSchoolLogoDataUrl(file);
+      setForm((current) => ({
+        ...current,
+        schoolLogoDataUrl,
+        schoolLogoName: file.name,
+      }));
+      setLogoStatus("학교 표지판에 로고가 함께 표시됩니다.");
+    } catch (error) {
+      setLogoStatus(error instanceof Error ? error.message : "학교 로고를 처리하지 못했습니다.");
+    }
+  }
+
+  function removeSchoolLogo() {
+    setForm((current) => ({ ...current, schoolLogoDataUrl: null, schoolLogoName: null }));
+    setLogoStatus("로고를 지웠습니다. 학교명만 표시됩니다.");
   }
 
   async function copyClassCode() {
@@ -101,7 +144,11 @@ export function TeacherDashboard() {
 
         <section className="project-strip" aria-label="현재 수업">
           <div className="project-strip__identity">
-            <span className="project-monogram">{project.schoolName.slice(0, 1)}</span>
+            <span className={`project-monogram${project.schoolLogoDataUrl ? " project-monogram--logo" : ""}`}>
+              {project.schoolLogoDataUrl ? (
+                <Image src={project.schoolLogoDataUrl} alt={`${project.schoolName} 로고`} fill sizes="66px" unoptimized />
+              ) : project.schoolName.slice(0, 1)}
+            </span>
             <div>
               <small>현재 준비 중인 수업</small>
               <h2>{project.title}</h2>
@@ -187,6 +234,38 @@ export function TeacherDashboard() {
                   maxLength={40}
                 />
               </label>
+              <div className="school-logo-field">
+                <span className="school-logo-field__label">학교 로고</span>
+                <div className="school-logo-field__content">
+                  <div className={`school-logo-preview${form.schoolLogoDataUrl ? " has-logo" : ""}`}>
+                    {form.schoolLogoDataUrl ? (
+                      <Image src={form.schoolLogoDataUrl} alt="등록한 학교 로고 미리보기" fill sizes="76px" unoptimized />
+                    ) : (
+                      <span>로고</span>
+                    )}
+                  </div>
+                  <div className="school-logo-field__actions">
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept={SCHOOL_LOGO_ACCEPT}
+                      onChange={handleLogoSelect}
+                      hidden
+                    />
+                    <div>
+                      <button className="school-logo-button" type="button" onClick={() => logoInputRef.current?.click()}>
+                        {form.schoolLogoDataUrl ? "로고 바꾸기" : "로고 넣기"}
+                      </button>
+                      {form.schoolLogoDataUrl ? (
+                        <button className="school-logo-button school-logo-button--remove" type="button" onClick={removeSchoolLogo}>
+                          지우기
+                        </button>
+                      ) : null}
+                    </div>
+                    <small role="status">{logoStatus || "PNG, JPG, WebP · 5MB 이하"}</small>
+                  </div>
+                </div>
+              </div>
               <label>
                 <span>반</span>
                 <input

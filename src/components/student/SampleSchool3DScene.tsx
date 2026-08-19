@@ -193,7 +193,22 @@ function addSchoolBuilding(
   }
 }
 
-function createSchoolSignTexture(THREE: typeof import("three"), schoolName: string): Texture {
+function loadSchoolLogoImage(source: string | null | undefined): Promise<HTMLImageElement | null> {
+  if (!source) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = source;
+  });
+}
+
+function createSchoolSignTexture(
+  THREE: typeof import("three"),
+  schoolName: string,
+  schoolLogo: HTMLImageElement | null,
+): Texture {
   const canvas = document.createElement("canvas");
   canvas.width = 1024;
   canvas.height = 192;
@@ -204,24 +219,49 @@ function createSchoolSignTexture(THREE: typeof import("three"), schoolName: stri
     context.strokeStyle = "#c8bfa7";
     context.lineWidth = 12;
     context.strokeRect(8, 8, canvas.width - 16, canvas.height - 16);
+    let textLeft = 54;
+    if (schoolLogo) {
+      const logoBox = 128;
+      const scale = Math.min(logoBox / schoolLogo.naturalWidth, logoBox / schoolLogo.naturalHeight);
+      const logoWidth = schoolLogo.naturalWidth * scale;
+      const logoHeight = schoolLogo.naturalHeight * scale;
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+      context.drawImage(
+        schoolLogo,
+        52 + (logoBox - logoWidth) / 2,
+        (canvas.height - logoHeight) / 2,
+        logoWidth,
+        logoHeight,
+      );
+      context.strokeStyle = "#ddd6c3";
+      context.lineWidth = 3;
+      context.beginPath();
+      context.moveTo(210, 35);
+      context.lineTo(210, canvas.height - 35);
+      context.stroke();
+      textLeft = 236;
+    }
     context.fillStyle = "#173f31";
     const label = schoolName.trim() || "우리 학교";
+    const textRight = canvas.width - 50;
+    const availableTextWidth = textRight - textLeft;
     let fontSize = 78;
     context.font = `700 ${fontSize}px sans-serif`;
-    while (context.measureText(label).width > canvas.width - 110 && fontSize > 38) {
+    while (context.measureText(label).width > availableTextWidth && fontSize > 38) {
       fontSize -= 2;
       context.font = `700 ${fontSize}px sans-serif`;
     }
     context.textAlign = "center";
     context.textBaseline = "middle";
-    context.fillText(label, canvas.width / 2, canvas.height / 2 + 2);
+    context.fillText(label, textLeft + availableTextWidth / 2, canvas.height / 2 + 2, availableTextWidth);
   }
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
 }
 
-function buildSampleCampus(runtime: SceneRuntime, schoolName: string): Mesh {
+function buildSampleCampus(runtime: SceneRuntime, schoolName: string, schoolLogo: HTMLImageElement | null): Mesh {
   const { THREE, scene, generatedTextures } = runtime;
   const campus = new THREE.Group();
   scene.add(campus);
@@ -248,7 +288,7 @@ function buildSampleCampus(runtime: SceneRuntime, schoolName: string): Mesh {
   entrance.castShadow = true;
   campus.add(entrance);
 
-  const signTexture = createSchoolSignTexture(THREE, schoolName);
+  const signTexture = createSchoolSignTexture(THREE, schoolName, schoolLogo);
   generatedTextures.push(signTexture);
   const signBacking = new THREE.Mesh(
     new THREE.BoxGeometry(7.6, 1.25, 0.14),
@@ -1061,6 +1101,7 @@ function groundPoint(runtime: SceneRuntime, event: PointerEvent | DragEvent): Po
 
 export function SampleSchool3DScene({
   schoolName,
+  schoolLogoDataUrl,
   objects,
   surfaceStrokes,
   selectedId,
@@ -1073,6 +1114,7 @@ export function SampleSchool3DScene({
   onPaintSurface,
 }: {
   schoolName: string;
+  schoolLogoDataUrl?: string | null;
   objects: LandscapeObject[];
   surfaceStrokes: SchoolSurfaceStroke[];
   selectedId: string | null;
@@ -1206,7 +1248,13 @@ export function SampleSchool3DScene({
         runtime.pathSurfaceTexture = createPavingTexture(runtime, "path");
         runtime.paverSurfaceTexture = createPavingTexture(runtime, "paver");
 
-        runtime.ground = buildSampleCampus(runtime, schoolName);
+        const schoolLogo = await loadSchoolLogoImage(schoolLogoDataUrl);
+        if (disposed) {
+          for (const texture of runtime.textures.values()) texture.dispose();
+          renderer.dispose();
+          return;
+        }
+        runtime.ground = buildSampleCampus(runtime, schoolName, schoolLogo);
         createSurfaceMaterials(runtime);
         runtimeRef.current = runtime;
         rebuildSurfaces(runtime, strokesRef.current);
@@ -1345,7 +1393,7 @@ export function SampleSchool3DScene({
       disposed = true;
       cleanup();
     };
-  }, [schoolName]);
+  }, [schoolLogoDataUrl, schoolName]);
 
   useEffect(() => {
     if (runtimeRef.current) rebuildLandscape(runtimeRef.current, objects, selectedId);

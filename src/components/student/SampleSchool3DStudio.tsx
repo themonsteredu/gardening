@@ -354,6 +354,7 @@ function SampleSchool3DWorkspace({
         <div className={`sample-school-canvas ${activeMaterialId || activeSurfaceId ? "is-placing" : ""}`}>
           <SampleSchool3DScene
             schoolName={project.schoolName}
+            schoolLogoDataUrl={project.schoolLogoDataUrl}
             objects={objects}
             surfaceStrokes={surfaceStrokes}
             selectedId={selectedId}

@@ -31,6 +31,8 @@ export interface Point2D {
 export interface SchoolProject {
   id: string;
   schoolName: string;
+  schoolLogoDataUrl?: string | null;
+  schoolLogoName?: string | null;
   className: string;
   title: string;
   mission: string;

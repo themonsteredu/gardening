@@ -1218,6 +1218,8 @@ textarea:focus-visible {
 }
 
 .project-monogram {
+  position: relative;
+  overflow: hidden;
   display: grid;
   width: 66px;
   height: 66px;
@@ -1228,6 +1230,16 @@ textarea:focus-visible {
   background: var(--forest-800);
   font-size: 1.3rem;
   font-weight: 700;
+}
+
+.project-monogram--logo {
+  border: 1px solid var(--line);
+  background: var(--white);
+}
+
+.project-monogram--logo img {
+  object-fit: contain;
+  padding: 0.5rem;
 }
 
 .project-strip small {
@@ -5947,6 +5959,88 @@ textarea:focus-visible {
   border-color: #285d43;
   color: #fff;
   background: #285d43;
+}
+
+.school-logo-field__label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--ink-700);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.school-logo-field__content {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-height: 98px;
+  border: 1px solid #cdd4cd;
+  border-radius: 3px;
+  padding: 0.65rem;
+  background: var(--white);
+}
+
+.school-logo-preview {
+  position: relative;
+  display: grid;
+  width: 76px;
+  height: 76px;
+  flex: 0 0 76px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px dashed #b8c5ba;
+  border-radius: 8px;
+  color: var(--ink-500);
+  background: #f5f7f4;
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.school-logo-preview.has-logo {
+  border-style: solid;
+  background: var(--white);
+}
+
+.school-logo-preview img {
+  object-fit: contain;
+  padding: 0.35rem;
+}
+
+.school-logo-field__actions {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.school-logo-field__actions > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.school-logo-button {
+  min-height: 36px;
+  border: 1px solid #789180;
+  border-radius: 4px;
+  padding: 0.45rem 0.7rem;
+  color: var(--forest-800);
+  background: #f7faf7;
+  cursor: pointer;
+  font-size: 0.65rem;
+  font-weight: 800;
+}
+
+.school-logo-button--remove {
+  border-color: #d6b8b0;
+  color: #8d3d2c;
+  background: #fff8f6;
+}
+
+.school-logo-field__actions small {
+  overflow-wrap: anywhere;
+  color: var(--ink-500);
+  font-size: 0.58rem;
+  line-height: 1.5;
 }
 
 .sample-materials__grid {
