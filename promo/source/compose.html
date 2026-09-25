@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>가드닝 커리어 랩 홍보영상</title>
+<style>
+/* colors from the app: forest #10271f/#315d48, lime accent #a6c337, sage #d7e0d0 */
+:root{--bg:#0a1b14;--ink:#eef3ea;--mute:#9db3a3;--lime:#b5d44a;--lime2:#a6c337;--sage:#d7e0d0;--forest:#315d48}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1920px;height:1080px;overflow:hidden;background:var(--bg);color:var(--ink);font-family:"Pretendard",sans-serif;letter-spacing:-0.02em;word-break:keep-all}
+.stage{position:absolute;inset:0;overflow:hidden;background:radial-gradient(1200px 700px at 80% 20%,#16372a 0%,transparent 60%),radial-gradient(900px 600px at 10% 90%,#12301f 0%,transparent 60%),var(--bg)}
+.grid{position:absolute;inset:-100px;background-image:linear-gradient(rgba(166,195,55,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(166,195,55,.055) 1px,transparent 1px);background-size:80px 80px}
+.scene{position:absolute;inset:0;opacity:0}
+.a{will-change:transform,opacity}
+.hero .bgimg{position:absolute;inset:0;background:url(frames/views/00211.jpg) no-repeat;background-size:2844px auto;background-position:-747px -356px;transform-origin:70% 50%}
+.hero .shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(10,27,20,.96) 0%,rgba(10,27,20,.78) 42%,rgba(10,27,20,.38) 80%),linear-gradient(0deg,rgba(10,27,20,.85),transparent 40%)}
+.hero .txt{position:absolute;left:140px;top:280px;width:1150px}
+.eyebrow{font-size:30px;font-weight:600;color:var(--lime);letter-spacing:.04em;margin-bottom:28px;display:flex;align-items:center;gap:16px}
+.eyebrow::before{content:"";width:44px;height:3px;background:var(--lime);display:block}
+.big{font-size:104px;font-weight:800;line-height:1.14;letter-spacing:-0.04em}
+.big em{font-style:normal;color:var(--lime)}
+.sub{font-size:38px;font-weight:500;color:#d6e2d3;margin-top:34px;line-height:1.45}
+.cap{position:absolute;left:110px;top:0;bottom:0;width:560px;display:flex;flex-direction:column;justify-content:center}
+.cap .num{font-size:26px;font-weight:700;color:var(--lime);letter-spacing:.08em;margin-bottom:22px}
+.cap h2{font-size:64px;font-weight:800;line-height:1.2;letter-spacing:-0.04em}
+.cap h2 em{font-style:normal;color:var(--lime)}
+.cap p{font-size:31px;font-weight:500;color:#bfd0c2;line-height:1.5;margin-top:30px}
+.chips{display:flex;flex-wrap:wrap;gap:12px;margin-top:34px}
+.chip{font-size:24px;font-weight:600;padding:10px 20px;border-radius:999px;border:1.5px solid rgba(181,212,74,.45);color:var(--lime);background:rgba(181,212,74,.07)}
+.win{position:absolute;left:720px;top:176px;width:1110px;border-radius:22px;overflow:hidden;background:#0d2219;border:1.5px solid rgba(181,212,74,.25);box-shadow:0 40px 120px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.4)}
+.win .bar{height:52px;display:flex;align-items:center;gap:10px;padding:0 22px;background:#132c21;border-bottom:1px solid rgba(181,212,74,.14)}
+.win .bar i{width:14px;height:14px;border-radius:50%;background:#35503f;display:block}
+.win .bar span{margin-left:22px;flex:1;height:32px;border-radius:9px;background:#081610;color:#9db3a3;font-size:19px;display:flex;align-items:center;padding:0 18px;font-weight:500}
+.win .view{position:relative;width:1110px;height:624px;overflow:hidden;background:#fff}
+.win .view img{position:absolute;left:0;top:0;transform-origin:0 0}
+.wide .win{left:320px;top:170px;width:1280px}
+.wide .win .view{width:1280px;height:720px}
+.wide .cap{left:320px;top:52px;bottom:auto;width:1400px;flex-direction:row;align-items:baseline;gap:28px;justify-content:flex-start}
+.wide .cap h2{font-size:56px}
+.wide .cap .num{margin:0}
+.tag{position:absolute;padding:14px 24px;border-radius:14px;background:rgba(10,27,20,.92);border:1.5px solid var(--lime);font-size:27px;font-weight:700;color:var(--lime);box-shadow:0 18px 50px rgba(0,0,0,.5);white-space:nowrap}
+.cards .head{position:absolute;left:0;right:0;top:110px;text-align:center}
+.cards .head h2{font-size:76px;font-weight:800;letter-spacing:-0.04em}
+.cards .head h2 em{font-style:normal;color:var(--lime)}
+.cards .head p{font-size:32px;color:#bfd0c2;margin-top:18px;font-weight:500}
+.cgrid{position:absolute;left:150px;right:150px;top:370px;display:grid;grid-template-columns:repeat(4,1fr);gap:26px}
+.card{height:236px;border-radius:22px;padding:28px 30px;background:linear-gradient(160deg,#173427,#0e2219);border:1.5px solid rgba(181,212,74,.2);display:flex;flex-direction:column;justify-content:space-between}
+.card b{display:block;margin-bottom:10px;font-size:21px;color:var(--lime);font-weight:700;letter-spacing:.06em}
+.card strong{font-size:33px;font-weight:800;line-height:1.28;letter-spacing:-0.03em}
+.card .ic{font-size:42px;line-height:1}
+.card.p2{border-color:rgba(215,224,208,.4)} .card.p2 b{color:var(--sage)}
+.outro{display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding-bottom:90px}
+.logo{display:flex;align-items:center;gap:30px}
+.mark{position:relative;width:118px;height:118px;border:4px solid var(--lime);border-radius:50% 50% 45% 45%}
+.mark span{position:absolute;display:block;width:34px;height:58px;border:5px solid var(--lime);border-radius:100% 0 100% 0;transform-origin:center}
+.mark span:first-child{top:18px;left:22px;transform:rotate(-14deg)}
+.mark span:last-child{top:28px;right:22px;transform:scaleX(-1) rotate(-10deg)}
+.logo .name{font-size:88px;font-weight:900;letter-spacing:.01em;text-align:left;line-height:1.05}
+.logo .name small{display:block;font-size:30px;letter-spacing:.06em;color:var(--lime);font-weight:600;margin-top:12px}
+.outro .line{font-size:50px;font-weight:700;margin-top:70px;letter-spacing:-0.03em}
+.outro .line em{font-style:normal;color:var(--lime)}
+.pill{margin-top:56px;font-size:36px;font-weight:700;padding:20px 44px;border-radius:999px;background:var(--lime);color:#10271f;letter-spacing:-0.01em}
+.outro .foot{margin-top:38px;font-size:26px;color:var(--mute);font-weight:500}
+.subs{position:absolute;left:0;right:0;bottom:44px;display:flex;justify-content:center;pointer-events:none}
+.subs span{font-size:40px;font-weight:600;line-height:1.35;color:#fff;background:rgba(4,12,8,.8);padding:14px 34px;border-radius:16px;text-align:center;max-width:1600px;box-shadow:0 10px 40px rgba(0,0,0,.35);letter-spacing:-0.02em}
+.progress{position:absolute;left:0;bottom:0;height:6px;background:var(--lime);opacity:.85}
+</style></head>
+<body>
+<div class="stage" id="stage">
+  <div class="grid a" id="grid"></div>
+
+  <section class="scene hero" id="s-hero">
+    <div class="bgimg a" id="hero-img"></div>
+    <div class="shade"></div>
+    <div class="txt">
+      <div class="eyebrow a" data-in="0.3">진로체험 · 조경전문가</div>
+      <div class="big a" data-in="0.7">오늘, 우리 반이<br><em>조경전문가</em>가 됩니다</div>
+      <div class="sub a" data-in="1.5">빈 학교 마당을 3D로 설계하고, 미니 정원까지 직접 만들어요</div>
+    </div>
+  </section>
+
+  <section class="scene" id="s-join">
+    <div class="cap">
+      <div class="num a" data-in="0.2">STEP 1 · 입장</div>
+      <h2 class="a" data-in="0.4">수업 코드 하나로<br><em>설계실</em> 입장</h2>
+      <p class="a" data-in="0.8">회원가입 없이 코드와 이름만 입력하면 바로 시작해요.</p>
+    </div>
+    <div class="win a" data-win><div class="bar"><i></i><i></i><i></i><span>가드닝 커리어 랩 · /join</span></div><div class="view"><img id="v-join"></div></div>
+  </section>
+
+  <section class="scene wide" id="s-paint">
+    <div class="cap"><div class="num a" data-in="0.1">STEP 2 · 바닥 만들기</div><h2 class="a" data-in="0.3">빈 땅에 <em>잔디와 산책로</em>를 직접 그려요</h2></div>
+    <div class="win a" data-win><div class="bar"><i></i><i></i><i></i><span>가드닝 커리어 랩 · 3D 학교 조경</span></div><div class="view"><img id="v-paint"></div></div>
+    <div class="tag a" id="tag-paint" style="left:1250px;top:186px">빠르게 감기 · 실제 조작 화면</div>
+  </section>
+
+  <section class="scene wide" id="s-place">
+    <div class="cap"><div class="num a" data-in="0.1">STEP 2 · 조경물 놓기</div><h2 class="a" data-in="0.3">나무 · 꽃 · 벤치를 <em>원하는 자리에</em></h2></div>
+    <div class="win a" data-win><div class="bar"><i></i><i></i><i></i><span>가드닝 커리어 랩 · 3D 학교 조경</span></div><div class="view"><img id="v-place"></div></div>
+    <div class="tag a" id="tag-place" style="left:1250px;top:186px">빠르게 감기 · 실제 조작 화면</div>
+  </section>
+
+  <section class="scene wide" id="s-views">
+    <div class="cap"><div class="num a" data-in="0.1">STEP 2 · 둘러보기</div><h2 class="a" data-in="0.3">360° 입체부터 <em>학생 눈높이</em>까지</h2></div>
+    <div class="win a" data-win><div class="bar"><i></i><i></i><i></i><span>가드닝 커리어 랩 · 3D 학교 조경</span></div><div class="view"><img id="v-views"></div></div>
+  </section>
+
+  <section class="scene" id="s-intent">
+    <div class="cap">
+      <div class="num a" data-in="0.2">STEP 3 · 설계 의도 & 친구 작품</div>
+      <h2 class="a" data-in="0.4">왜 이렇게 설계했는지<br><em>말로 설명해요</em></h2>
+      <p class="a" data-in="0.8">우리 반 갤러리에서 점수·순위 없이 서로의 생각을 비교해요.</p>
+      <div class="chips a" data-in="1.2"><span class="chip">휴식</span><span class="chip">녹지</span><span class="chip">이동</span><span class="chip">경관</span><span class="chip">자연친화</span><span class="chip">놀이</span></div>
+    </div>
+    <div class="win a" data-win><div class="bar"><i></i><i></i><i></i><span>가드닝 커리어 랩 · 설계 의도</span></div><div class="view"><img id="v-intent"></div></div>
+  </section>
+
+  <section class="scene" id="s-pot">
+    <div class="cap">
+      <div class="num a" data-in="0.2">STEP 4 · 미니조경 모델링</div>
+      <h2 class="a" data-in="0.4">진짜 투명화분에<br><em>색모래 층</em> 설계</h2>
+      <p class="a" data-in="0.8">선생님이 등록한 실제 화분 크기 그대로, 0.5cm 단위로 높이와 순서를 정해요.</p>
+    </div>
+    <div class="win a" data-win><div class="bar"><i></i><i></i><i></i><span>가드닝 커리어 랩 · 미니조경</span></div><div class="view"><img id="v-pot"></div></div>
+  </section>
+
+  <section class="scene" id="s-make">
+    <div class="cap">
+      <div class="num a" data-in="0.2">STEP 5 · 실제 제작</div>
+      <h2 class="a" data-in="0.4">식물을 배치하면<br><em>제작 순서</em>가 자동으로</h2>
+      <p class="a" data-in="0.8">단계별로 체크하며 만들고, 완성작 사진을 설계와 나란히 비교해요.</p>
+    </div>
+    <div class="win a" data-win><div class="bar"><i></i><i></i><i></i><span>가드닝 커리어 랩 · 미니조경</span></div><div class="view"><img id="v-make"></div></div>
+  </section>
+
+  <section class="scene cards" id="s-cards">
+    <div class="head"><h2 class="a" data-in="0.1">한 공간을 <em>보고, 생각하고, 만들어요</em></h2><p class="a" data-in="0.4">학교 조경 설계에서 손으로 만드는 미니 정원까지, 하나로 이어진 체험</p></div>
+    <div class="cgrid">
+      <div class="card a" data-in="0.6"><span class="ic">🏫</span><div><b>3D 학교</b><strong>항공 · 입체 ·<br>학생 시점</strong></div></div>
+      <div class="card a" data-in="0.72"><span class="ic">🌱</span><div><b>바닥 재료 6종</b><strong>잔디 · 산책로 ·<br>보도블록 · 자갈</strong></div></div>
+      <div class="card a" data-in="0.84"><span class="ic">🌳</span><div><b>실사 조경물 13종</b><strong>나무 · 꽃 ·<br>벤치 · 꽃화단</strong></div></div>
+      <div class="card a" data-in="0.96"><span class="ic">🖼️</span><div><b>우리 반 갤러리</b><strong>설계 의도를<br>순위 없이 비교</strong></div></div>
+      <div class="card p2 a" data-in="1.08"><span class="ic">🫙</span><div><b>투명화분</b><strong>실제 크기 그대로<br>미리 확인</strong></div></div>
+      <div class="card p2 a" data-in="1.2"><span class="ic">🏖️</span><div><b>색모래 층</b><strong>높이 · 순서를<br>직접 설계</strong></div></div>
+      <div class="card p2 a" data-in="1.32"><span class="ic">🌸</span><div><b>식물 · 돌 · 장식</b><strong>준비된 수량 안에서<br>배치</strong></div></div>
+      <div class="card p2 a" data-in="1.44"><span class="ic">📷</span><div><b>완성</b><strong>제작 순서 체크 &<br>실물 사진 비교</strong></div></div>
+    </div>
+  </section>
+
+  <section class="scene" id="s-teacher">
+    <div class="cap">
+      <div class="num a" data-in="0.2">선생님 수업 설계실</div>
+      <h2 class="a" data-in="0.4">수업 준비도<br><em>한 화면에서</em></h2>
+      <p class="a" data-in="0.8">수업 코드, 학생 진행 현황, 오늘 쓸 화분과 실제 재료를 미리 준비해요.</p>
+      <div class="chips a" data-in="1.2"><span class="chip">수업 코드</span><span class="chip">학생 현황</span><span class="chip">화분 · 재료 키트</span></div>
+    </div>
+    <div class="win a" data-win><div class="bar"><i></i><i></i><i></i><span>가드닝 커리어 랩 · /teacher</span></div><div class="view"><img id="v-teacher"></div></div>
+  </section>
+
+  <section class="scene outro" id="s-outro">
+    <div class="logo a" data-in="0.1"><div class="mark"><span></span><span></span></div><div class="name">GARDENING<br>CAREER LAB<small>가드닝 커리어 랩 · 조경전문가 직업체험</small></div></div>
+    <div class="line a" data-in="0.6">같은 공간도, <em>생각에 따라</em> 다른 설계가 됩니다</div>
+    <div class="pill a" data-in="1.1">수업 코드 하나로 바로 시작</div>
+    <div class="foot a" data-in="1.5">설치 없이 웹 브라우저에서 · 태블릿 · 크롬북에서도</div>
+  </section>
+  <div class="subs"><span id="sub"></span></div>
+  <div class="progress" id="prog"></div>
+</div>
+<script>
+const FPS = 30;
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const ease = t => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2;
+const eout = t => 1 - Math.pow(1 - t, 3);
+const lerp = (a, b, t) => a + (b - a) * t;
+// frame counts (from extract.sh) and frame pixel width
+const CLIPS = {
+  join:{n:308,w:1600}, paint:{n:1304,w:1600}, place:{n:2785,w:1600}, views:{n:1075,w:1600},
+  intent:{n:260,w:2400}, pot:{n:424,w:2400}, objects:{n:282,w:2400}, making:{n:386,w:2400},
+  teacher:{n:229,w:2400}, kit:{n:200,w:2400},
+};
+// view rects in 1600x900 css space: [x,y,w] (h = w*9/16)
+const SCENES = [
+  { id:'s-hero', dur:4.6 },
+  { id:'s-join', dur:4.4, img:'v-join', segs:[
+      { clip:'join', from:1.6, rate:1.4, len:4.4, view:[[0,0,1600],[420,40,1180]] } ] },
+  { id:'s-paint', dur:5.6, img:'v-paint', segs:[
+      { clip:'paint', from:1.0, rate:7.3, len:5.6, view:[[0,0,1600],[60,100,1480]] } ] },
+  { id:'s-place', dur:6.4, img:'v-place', segs:[
+      { clip:'place', from:0.5, rate:14, len:6.4, view:[[0,90,1400],[80,130,1360]] } ] },
+  { id:'s-views', dur:6.2, img:'v-views', segs:[
+      { clip:'views', from:5.8, rate:2.4, len:3.6, view:[[250,110,1350],[330,160,1210]] },
+      { clip:'views', from:24.5, rate:1, len:2.6, view:[[252,150,1348],[300,170,1260]] } ] },
+  { id:'s-intent', dur:6.2, img:'v-intent', segs:[
+      { clip:'intent', from:0.6, rate:1.3, len:6.2, view:[[0,0,1600],[100,70,1380]] } ] },
+  { id:'s-pot', dur:5.8, img:'v-pot', segs:[
+      { clip:'pot', from:0.8, rate:2.2, len:5.8, view:[[0,0,1600],[120,120,1240]] } ] },
+  { id:'s-make', dur:6.2, img:'v-make', segs:[
+      { clip:'objects', from:1.4, rate:1.9, len:3.4, view:[[0,40,1560],[260,170,1080]] },
+      { clip:'making', from:3.0, rate:3.2, len:2.8, view:[[0,0,1600],[40,40,1460]] } ] },
+  { id:'s-cards', dur:4.8 },
+  { id:'s-teacher', dur:5.4, img:'v-teacher', segs:[
+      { clip:'teacher', from:0.5, rate:1.1, len:3.0, view:[[0,0,1600],[40,40,1460]] },
+      { clip:'kit', from:0.8, rate:2.0, len:2.4, view:[[0,20,1560],[0,60,1400]] } ] },
+  { id:'s-outro', dur:5.2 },
+];
+const XF = 0.6;
+let acc = 0; for (const s of SCENES) { s.start = acc; acc += s.dur - XF; }
+const TOTAL = acc + XF;
+window.TOTAL = TOTAL; window.SCENES = SCENES;
+function src(clip, i) { const c = CLIPS[clip]; i = Math.max(1, Math.min(c.n, i)); return `frames/${clip}/${String(i).padStart(5,'0')}.jpg`; }
+async function setImg(el, url) { if (el.dataset.src === url) return; el.dataset.src = url; el.src = url; try { await el.decode(); } catch {} }
+const SUBS = [
+  [0.4,3.9,'매일 지나는 학교 마당, 우리가 직접 꾸민다면 어떨까요?'],
+  [4.2,7.5,'수업 코드와 이름만 넣으면, 오늘부터 나는 조경 설계자!'],
+  [7.9,12.4,'빈 3D 학교에 잔디와 산책로를 손으로 쓱쓱 그려 바닥을 만들어요.'],
+  [12.9,18.2,'나무, 꽃, 벤치 같은 실사 조경 재료를 골라 빈 공간에 놓아요.'],
+  [18.7,23.8,'항공샷, 360° 입체, 학생 눈높이로 내 설계를 둘러봐요.'],
+  [24.3,29.4,'왜 이렇게 설계했는지 적고, 친구들의 작품과 순위 없이 비교해요.'],
+  [29.9,34.6,'이번엔 진짜 투명화분! 색모래 층의 높이와 순서까지 설계해요.'],
+  [35.1,40.2,'식물과 장식을 배치하면, 만드는 순서가 자동으로 정리돼요.'],
+  [40.7,44.4,'학교 조경부터 미니 정원까지, 하나로 이어지는 설계 프로젝트.'],
+  [44.9,49.2,'선생님은 수업 코드와 오늘 쓸 화분·재료를 미리 준비해요.'],
+  [49.7,54.2,'같은 공간도 생각에 따라 달라지는 설계, 가드닝 커리어 랩에서 만나요.'],
+];
+window.SUBS = SUBS;
+window.render = async function (t) {
+  { const cur = SUBS.find(x => t >= x[0] && t <= x[1]); const el = document.getElementById('sub');
+    if (cur) { el.textContent = cur[2]; const o = Math.min(clamp((t-cur[0])/0.25), clamp((cur[1]-t)/0.25)); el.parentElement.style.opacity = o; el.style.visibility='visible'; }
+    else { el.style.visibility='hidden'; } }
+  document.getElementById('prog').style.width = (t / TOTAL * 100) + '%';
+  document.getElementById('grid').style.transform = `translate(${-(t*6)%80}px, ${-(t*3)%80}px)`;
+  const waits = [];
+  for (const s of SCENES) {
+    const el = document.getElementById(s.id);
+    const lt = t - s.start;
+    if (lt < -0.01 || lt > s.dur + 0.01) { el.style.opacity = 0; el.style.display = 'none'; continue; }
+    el.style.display = '';
+    const fin = s === SCENES[0] ? clamp(lt / 0.5) : clamp(lt / XF), fout = s === SCENES.at(-1) ? clamp((s.dur - lt) / 0.8) : clamp((s.dur - lt) / XF);
+    el.style.opacity = Math.min(fin, fout);
+    el.querySelectorAll('[data-in]').forEach(a => {
+      const p = eout(clamp((lt - parseFloat(a.dataset.in)) / 0.7));
+      a.style.opacity = p; a.style.transform = `translateY(${(1 - p) * 34}px)`;
+    });
+    const win = el.querySelector('[data-win]');
+    if (win) { const p = eout(clamp((lt - 0.15) / 0.9)); win.style.opacity = p; win.style.transform = `translateY(${(1-p)*50}px) scale(${lerp(.96,1,p)})`; }
+    if (s.id === 's-hero') document.getElementById('hero-img').style.transform = `scale(${1.02 + lt * 0.02}) translateX(${-lt*8}px)`;
+    for (const id of ['tag-paint','tag-place']) { const tg = el.querySelector('#'+id); if (tg) { const p = eout(clamp((lt-1.2)/0.6)); tg.style.opacity = p; tg.style.transform = `translateY(${(1-p)*20}px)`; } }
+    if (s.segs) {
+      let off = 0, seg = s.segs[0];
+      for (const g of s.segs) { if (lt >= off) seg = g; off += g.len; }
+      let segStart = 0; for (const g of s.segs) { if (g === seg) break; segStart += g.len; }
+      const st = clamp(lt - segStart, 0, seg.len);
+      const frame = Math.round((seg.from + st * seg.rate) * FPS) + 1;
+      const img = document.getElementById(s.img);
+      const box = img.parentElement; const bw = box.clientWidth;
+      const k = ease(clamp(st / seg.len));
+      const [a, b] = seg.view;
+      const vx = lerp(a[0], b[0], k), vy = lerp(a[1], b[1], k), vw = lerp(a[2], b[2], k);
+      const sc = bw / vw;
+      const pxScale = 1600 / CLIPS[seg.clip].w;
+      img.style.width = CLIPS[seg.clip].w + 'px';
+      img.style.transform = `translate(${-vx*sc}px, ${-vy*sc}px) scale(${sc*pxScale})`;
+      waits.push(setImg(img, src(seg.clip, frame)));
+    }
+  }
+  await Promise.all(waits);
+};
+</script>
+</body></html>
