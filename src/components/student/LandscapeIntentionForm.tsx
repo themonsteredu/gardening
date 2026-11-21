@@ -10,7 +10,8 @@ import {
   upsertLandscapeGalleryEntry,
 } from "@/lib/project-store";
 import { useBrowserStorageValue, writeBrowserStorage } from "@/lib/use-browser-storage";
-import { BONGSUN_SCENE_VERSION } from "@/lib/sample-school";
+import { getStudentWorkEditKey } from "@/lib/student-work-key";
+import { isOrbitSchoolScene } from "@/lib/sample-school";
 import { BongsunDesignReview } from "./BongsunDesignReview";
 import { LandscapeDesignPreview } from "@/components/student/LandscapeDesignPreview";
 
@@ -39,6 +40,7 @@ export function LandscapeIntentionForm({
   const [keyword, setKeyword] = useState(design?.intentionKeyword ?? "");
   const [reason, setReason] = useState(design?.intentionReason ?? "");
   const [notice, setNotice] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const hasDesign = design && (design.objects.length > 0 || Boolean(design.surfaceStrokes?.length));
   if (!hasDesign) {
@@ -52,8 +54,8 @@ export function LandscapeIntentionForm({
     );
   }
 
-  function submitDesign() {
-    if (!design || !hasDesign) return;
+  async function submitDesign() {
+    if (!design || !hasDesign || submitting) return;
     const trimmedReason = reason.trim();
     if (!keyword) {
       setNotice("가장 중요하게 생각한 한 가지를 선택해 주세요.");
@@ -83,9 +85,34 @@ export function LandscapeIntentionForm({
       intentionReason: trimmedReason,
       submittedAt,
     };
-    const gallery = upsertLandscapeGalleryEntry(parseStoredLandscapeGallery(galleryValue), entry);
-    writeBrowserStorage("local", designStorageKey, JSON.stringify(submittedDesign));
-    writeBrowserStorage("local", galleryStorageKey, JSON.stringify(gallery));
+    setSubmitting(true);
+    setNotice("");
+    if (project.sharedClass) {
+      try {
+        const result = await fetch(`/api/school-classes/${encodeURIComponent(project.classCode)}/works`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ entry, editKey: getStudentWorkEditKey(sessionId) }),
+        });
+        if (!result.ok) throw new Error("수업 갤러리 제출 실패");
+      } catch {
+        setNotice("우리 반 갤러리에 아직 제출되지 않았어요. 연결을 확인하고 다시 눌러 주세요.");
+        setSubmitting(false);
+        return;
+      }
+    }
+    const latestGallery = window.localStorage.getItem(galleryStorageKey) ?? galleryValue;
+    const gallery = upsertLandscapeGalleryEntry(parseStoredLandscapeGallery(latestGallery), entry);
+    try {
+      writeBrowserStorage("local", designStorageKey, JSON.stringify(submittedDesign));
+      writeBrowserStorage("local", galleryStorageKey, JSON.stringify(gallery));
+    } catch {
+      if (!project.sharedClass) {
+        setNotice("이 기기에 작품을 저장하지 못했어요. 저장 공간을 확인하고 다시 눌러 주세요.");
+        setSubmitting(false);
+        return;
+      }
+    }
     onSubmitted();
   }
 
@@ -104,11 +131,11 @@ export function LandscapeIntentionForm({
       <div className="intention-layout">
         <section className="intention-design-review">
           <div className="intention-section-label"><span>01</span><div><strong>완성한 설계 확인</strong><small>제출 전 마지막 점검</small></div></div>
-          {design.sceneVersion === BONGSUN_SCENE_VERSION ? (
-            <BongsunDesignReview objects={design.objects} surfaceStrokes={design.surfaceStrokes} />
+          {isOrbitSchoolScene(design.sceneVersion) ? (
+            <BongsunDesignReview campus={project.campusModel} objects={design.objects} surfaceStrokes={design.surfaceStrokes} />
           ) : <LandscapeDesignPreview objects={design.objects} variant="plan" label={`${nickname}의 조경 배치도`} />}
           <dl>
-            <div><dt>대상 공간</dt><dd>{project.schoolName} {design.sceneVersion === BONGSUN_SCENE_VERSION ? "본관 앞 · 수업용 뒤뜰" : "중앙 빈 공간"}</dd></div>
+            <div><dt>대상 공간</dt><dd>{project.schoolName} {isOrbitSchoolScene(design.sceneVersion) ? "본관 앞 · 수업용 뒤뜰" : "중앙 빈 공간"}</dd></div>
             <div><dt>설계 미션</dt><dd>{project.mission}</dd></div>
           </dl>
         </section>
@@ -130,7 +157,7 @@ export function LandscapeIntentionForm({
           </label>
           <div className="intention-checklist"><strong>제출 전 확인</strong><ul><li>이동 동선을 막지 않았나요?</li><li>공간의 목적이 배치에 드러나나요?</li><li>내 설계 이유를 친구가 이해할 수 있나요?</li></ul></div>
           <p className="intention-notice" role="status">{notice}</p>
-          <button className="button button--primary button--wide intention-submit" type="button" onClick={submitDesign}>우리 반 갤러리에 제출 <span aria-hidden="true">→</span></button>
+          <button className="button button--primary button--wide intention-submit" type="button" onClick={submitDesign} disabled={submitting}>{submitting ? "제출 중…" : "우리 반 갤러리에 제출"} <span aria-hidden="true">→</span></button>
         </section>
       </div>
     </main>

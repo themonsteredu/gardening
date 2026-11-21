@@ -1,9 +1,16 @@
+import type { CampusModel } from "@/lib/campus-model";
 import type { Point2D, SchoolGardenSide, SchoolSurfaceMaterialId, StudentLandscapeDesign } from "@/domain/models";
 
 export const SAMPLE_SCHOOL_WIDTH_METERS = 30;
 export const SAMPLE_SCHOOL_DEPTH_METERS = 22;
 export const SAMPLE_SCHOOL_SCENE_VERSION = "sample-middle-school-v2" as const;
 export const BONGSUN_SCENE_VERSION = "bongsun-facade-v1" as const;
+export const GENERATED_CAMPUS_SCENE_VERSION = "generated-campus-v1" as const;
+
+export function isOrbitSchoolScene(version: StudentLandscapeDesign["sceneVersion"]) {
+  return version === BONGSUN_SCENE_VERSION || version === GENERATED_CAMPUS_SCENE_VERSION;
+}
+
 export const BONGSUN_FRONT_GARDEN = { width: 24, depth: 10, centerZ: 3 } as const;
 
 // Frontage designs saved before the rear garden was added have no side field.
@@ -16,11 +23,14 @@ export function isBongsunSchool(schoolName: string): boolean {
   return /^(?:(?:전라남도)?광주(?:광역시)?|전남광주(?:통합특별시)?)?(?:남구)?봉선중(?:학교)?$/.test(name);
 }
 
-export function getSchoolSceneVersion(schoolName: string, saved: StudentLandscapeDesign | null) {
+export function getSchoolSceneVersion(schoolName: string, saved: StudentLandscapeDesign | null, campus?: CampusModel) {
+  if (saved?.sceneVersion === GENERATED_CAMPUS_SCENE_VERSION && campus?.kind === "generated") return GENERATED_CAMPUS_SCENE_VERSION;
   if (saved?.sceneVersion === BONGSUN_SCENE_VERSION) return BONGSUN_SCENE_VERSION;
   if (saved && (saved.objects.length > 0 || saved.surfaceStrokes?.length || saved.submittedAt)) {
     return saved.sceneVersion ?? SAMPLE_SCHOOL_SCENE_VERSION;
   }
+  if (campus?.kind === "generated") return GENERATED_CAMPUS_SCENE_VERSION;
+  if (campus?.kind === "bongsun") return BONGSUN_SCENE_VERSION;
   return isBongsunSchool(schoolName) ? BONGSUN_SCENE_VERSION : SAMPLE_SCHOOL_SCENE_VERSION;
 }
 

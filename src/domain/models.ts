@@ -1,3 +1,5 @@
+import type { CampusModel } from "@/lib/campus-model";
+
 export const LANDSCAPE_STAGES = [
   "joined",
   "site_review",
@@ -29,6 +31,8 @@ export interface Point2D {
 }
 
 export interface SchoolProject {
+  campusModel?: CampusModel;
+  sharedClass?: boolean;
   id: string;
   schoolName: string;
   schoolLogoDataUrl?: string | null;
@@ -137,7 +141,7 @@ export interface StudentLandscapeDesign {
   id: string;
   studentSessionId: string;
   schoolProjectId: string;
-  sceneVersion?: "photo-plan-v1" | "sample-middle-school-v1" | "sample-middle-school-v2" | "bongsun-facade-v1";
+  sceneVersion?: "photo-plan-v1" | "sample-middle-school-v1" | "sample-middle-school-v2" | "bongsun-facade-v1" | "generated-campus-v1";
   objects: LandscapeObject[];
   surfaceStrokes?: SchoolSurfaceStroke[];
   intentionKeyword: string | null;

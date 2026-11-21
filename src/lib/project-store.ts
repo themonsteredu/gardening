@@ -11,6 +11,10 @@ export const CLASS_LANDSCAPE_GALLERY_STORAGE_PREFIX = "gardening.class.landscape
 export const MINI_GARDEN_KITS_STORAGE_KEY = "gardening.teacher.mini-garden-kits.v1";
 export const STUDENT_MINI_GARDEN_DESIGN_STORAGE_PREFIX = "gardening.student.mini-garden-design.v1.";
 
+export function getSharedProjectSnapshotStorageKey(projectId: string): string {
+  return "gardening.shared-school-project." + projectId;
+}
+
 export function getStudentSessionStorageKey(sessionId: string): string {
   return `${STUDENT_SESSION_STORAGE_PREFIX}${sessionId}`;
 }

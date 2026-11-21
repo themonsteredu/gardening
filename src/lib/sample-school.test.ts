@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { SchoolSurfaceStroke, StudentLandscapeDesign } from "@/domain/models";
 import {
   BONGSUN_SCENE_VERSION,
+  GENERATED_CAMPUS_SCENE_VERSION,
+  isOrbitSchoolScene,
   getSchoolSceneVersion,
   isBongsunSchool,
   isOnSchoolGardenSide,
@@ -74,6 +76,23 @@ describe("Bongseon main building frontage", () => {
     for (const name of ["봉선초등학교", "광주봉선여자중학교", "다른봉선중학교"]) {
       expect(isBongsunSchool(name)).toBe(false);
     }
+  });
+
+  it("selects a published school's own model and keeps existing work on its original scene", () => {
+    const campus = {
+      id: "campus-1", schoolName: "새봄중학교", region: "광주", kind: "generated" as const,
+      floors: 3, bays: 12, wallColor: "#aa7766", roofColor: "#445566",
+    };
+    const version = getSchoolSceneVersion(campus.schoolName, null, campus);
+    expect(version).toBe(GENERATED_CAMPUS_SCENE_VERSION);
+    expect(isOrbitSchoolScene(version)).toBe(true);
+    expect(getSchoolSceneVersion("봉선중학교", null, campus)).toBe(GENERATED_CAMPUS_SCENE_VERSION);
+    const existing: StudentLandscapeDesign = {
+      id: "design", studentSessionId: "s", schoolProjectId: "p", objects: [],
+      sceneVersion: SAMPLE_SCHOOL_SCENE_VERSION, intentionKeyword: "녹지", intentionReason: "친구들과 쉬는 공간",
+      thumbnailUrl: null, submittedAt: "2026-11-21T10:00:00Z",
+    };
+    expect(getSchoolSceneVersion(campus.schoolName, existing, campus)).toBe(SAMPLE_SCHOOL_SCENE_VERSION);
   });
 
   it("keeps an existing design in its original setting when the teacher selects the school", () => {

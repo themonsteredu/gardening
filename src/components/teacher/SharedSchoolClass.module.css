@@ -1,0 +1,10 @@
+.share { display:flex; flex-wrap:wrap; align-items:center; gap:1rem 1.5rem; padding:1rem; background:#f2f6f1; border:1px solid #cad6cb; border-radius:.8rem; color:#234133; }
+.share svg { flex:none; max-width:45%; height:auto; }
+.share p { margin:.25rem 0; line-height:1.55; }
+.code { font-size:clamp(1.4rem,3vw,2rem); letter-spacing:.065em; }
+.actions { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; margin:.6rem 0; }
+.history { display:flex; flex-wrap:wrap; align-items:center; gap:.6rem; margin:1rem 0; }
+.history select { padding:.55rem; max-width:100%; background:white; color:#234133; border:1px solid #b8c8bc; border-radius:.5rem; font:inherit; }
+.works { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,19rem),1fr)); gap:1rem; }
+.work { border:1px solid #c7d3cb; padding:.9rem; border-radius:.7rem; background:#fff; min-width:0; }
+.work p { margin:.7rem 0 0; overflow-wrap:anywhere; }

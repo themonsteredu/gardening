@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import type { CampusModel } from "@/lib/campus-model";
 import { useState } from "react";
 import type { LandscapeObject, SchoolGardenSide, SchoolSurfaceStroke } from "@/domain/models";
 import { isOnSchoolGardenSide } from "@/lib/sample-school";
@@ -8,7 +9,8 @@ import styles from "./BongsunDesignReview.module.css";
 
 const OrbitViewer = dynamic(() => import("./BongsunCompatibleEditor").then(module => module.BongsunOrbitViewer));
 
-export function BongsunDesignReview({ objects, surfaceStrokes = [] }: {
+export function BongsunDesignReview({ objects, surfaceStrokes = [], campus }: {
+  campus?: CampusModel;
   objects: LandscapeObject[];
   surfaceStrokes?: SchoolSurfaceStroke[];
 }) {
@@ -21,7 +23,7 @@ export function BongsunDesignReview({ objects, surfaceStrokes = [] }: {
   return (
     <div className={styles.review}>
       <div className={styles.scene}>
-        <OrbitViewer objects={objects} surfaceStrokes={surfaceStrokes} initialSide={initialSide} onGardenSideChange={setSide} />
+        <OrbitViewer campus={campus} objects={objects} surfaceStrokes={surfaceStrokes} initialSide={initialSide} onGardenSideChange={setSide} />
       </div>
       <div className={styles.caption}>
         <strong>{side === "front" ? "본관 앞" : "수업용 뒤뜰"}</strong>
