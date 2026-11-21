@@ -2,30 +2,34 @@
 
 import Image from "next/image";
 import { type PointerEvent, useId, useRef, useState } from "react";
-import { BONGSUN_VIEWS as angles } from "@/lib/bongsun-views";
+import type { SchoolGardenSide } from "@/domain/models";
+import { BONGSUN_VIEWS as angles, getBongsunFrameUrl } from "@/lib/bongsun-views";
 import styles from "./preview.module.css";
 
 type View = "front-left" | "front" | "front-right";
 
 export function BongsunPreviewFallback({
+  gardenSide,
   view,
   cameraResetKey,
   planted,
 }: {
+  gardenSide: SchoolGardenSide;
   view: View;
   cameraResetKey: number;
   planted: boolean;
 }) {
-  return <FrameViewer key={`${view}-${cameraResetKey}`} initialView={view} planted={planted} />;
+  return <FrameViewer key={`${gardenSide}-${view}-${cameraResetKey}`} gardenSide={gardenSide} initialView={view} planted={planted} />;
 }
 
-function FrameViewer({ initialView, planted }: { initialView: View; planted: boolean }) {
+function FrameViewer({ gardenSide, initialView, planted }: { gardenSide: SchoolGardenSide; initialView: View; planted: boolean }) {
   const [index, setIndex] = useState(() => angles.findIndex((angle) => angle.frame === initialView));
   const drag = useRef<{ pointerId: number; x: number; index: number } | null>(null);
   const hintId = useId();
   const angle = angles[index];
   const label = angle.angle === 0 ? "정면" : `${angle.angle < 0 ? "왼쪽" : "오른쪽"} ${Math.round(Math.abs(angle.angle))}도`;
-  const frame = `/previews/bongsun/${angle.frame}${planted ? "-planted" : ""}.webp`;
+  const location = gardenSide === "front" ? "봉선중학교 본관" : "봉선중학교 수업용 뒤뜰";
+  const frame = getBongsunFrameUrl(gardenSide, angle.frame, planted);
 
   function showAngle(next: number) {
     setIndex(Math.max(0, Math.min(angles.length - 1, next)));
@@ -43,7 +47,7 @@ function FrameViewer({ initialView, planted }: { initialView: View; planted: boo
       className={styles.frameViewer}
       role="slider"
       tabIndex={0}
-      aria-label="봉선중학교 본관을 보는 방향"
+      aria-label={`${location}을 보는 방향`}
       aria-describedby={hintId}
       aria-valuemin={1}
       aria-valuemax={angles.length}
@@ -76,7 +80,7 @@ function FrameViewer({ initialView, planted }: { initialView: View; planted: boo
     >
       <Image
         src={frame}
-        alt={`${label}에서 본 봉선중학교 본관 모형과 ${planted ? "꽃을 심은 화단" : "심기 전 화단"}`}
+        alt={`${label}에서 본 ${location} 모형과 ${planted ? "꽃을 심은 화단" : "심기 전 화단"}`}
         fill
         unoptimized
         draggable={false}

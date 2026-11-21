@@ -1,10 +1,15 @@
-import type { Point2D, SchoolSurfaceMaterialId, StudentLandscapeDesign } from "@/domain/models";
+import type { Point2D, SchoolGardenSide, SchoolSurfaceMaterialId, StudentLandscapeDesign } from "@/domain/models";
 
 export const SAMPLE_SCHOOL_WIDTH_METERS = 30;
 export const SAMPLE_SCHOOL_DEPTH_METERS = 22;
 export const SAMPLE_SCHOOL_SCENE_VERSION = "sample-middle-school-v2" as const;
 export const BONGSUN_SCENE_VERSION = "bongsun-facade-v1" as const;
 export const BONGSUN_FRONT_GARDEN = { width: 24, depth: 10, centerZ: 3 } as const;
+
+// Frontage designs saved before the rear garden was added have no side field.
+export function isOnSchoolGardenSide(item: { gardenSide?: SchoolGardenSide }, side: SchoolGardenSide) {
+  return (item.gardenSide ?? "front") === side;
+}
 
 export function isBongsunSchool(schoolName: string): boolean {
   const name = schoolName.normalize("NFKC").replace(/\s/g, "");

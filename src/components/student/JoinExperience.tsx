@@ -95,7 +95,7 @@ export function JoinExperience({ bongsunPreset }: { bongsunPreset: boolean }) {
           </h1>
           <p>
             {isBongsunPractice
-              ? "봉선중학교 본관을 정면으로 보며 앞마당에 꽃과 나무를 심어 보세요."
+              ? "봉선중학교 본관 앞과 수업용 뒤뜰에 꽃과 나무를 심어 보세요."
               : "샘플 중학교를 항공과 학생 시점으로 둘러보고, 실제 모습의 조경 재료를 직접 배치합니다."}
           </p>
           {!isBongsunPractice && <PlanPreview variant="student" />}
@@ -110,7 +110,7 @@ export function JoinExperience({ bongsunPreset }: { bongsunPreset: boolean }) {
             <span>01</span>
             <div>
               <p>{isBongsunPractice ? "개인 연습" : "수업 참여"}</p>
-              <h2 id="join-title">{isBongsunPractice ? "봉선중 본관 앞 꾸미기" : "설계 프로젝트에 입장하기"}</h2>
+              <h2 id="join-title">{isBongsunPractice ? "봉선중학교 정원 꾸미기" : "설계 프로젝트에 입장하기"}</h2>
             </div>
           </div>
 

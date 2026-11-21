@@ -100,7 +100,10 @@ export interface LandscapeMaterial {
   modelAssetUrl: string | null;
 }
 
+export type SchoolGardenSide = "front" | "rear";
+
 export interface LandscapeObject {
+  gardenSide?: SchoolGardenSide;
   id: string;
   materialId: string;
   x: number;
@@ -122,6 +125,7 @@ export type SchoolSurfaceMaterialId =
   | "sand-surface";
 
 export interface SchoolSurfaceStroke {
+  gardenSide?: SchoolGardenSide;
   id: string;
   materialId: SchoolSurfaceMaterialId;
   points: Point2D[];
@@ -143,6 +147,7 @@ export interface StudentLandscapeDesign {
 }
 
 export interface LandscapeGalleryEntry {
+  sceneVersion?: StudentLandscapeDesign["sceneVersion"];
   id: string;
   studentSessionId: string;
   schoolProjectId: string;

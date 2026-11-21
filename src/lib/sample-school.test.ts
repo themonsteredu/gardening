@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { StudentLandscapeDesign } from "@/domain/models";
+import type { SchoolSurfaceStroke, StudentLandscapeDesign } from "@/domain/models";
 import {
   BONGSUN_SCENE_VERSION,
   getSchoolSceneVersion,
   isBongsunSchool,
+  isOnSchoolGardenSide,
   SAMPLE_SCHOOL_SCENE_VERSION,
   getSampleSchoolPlacementClearance,
   isSampleSchoolPlacementAllowed,
@@ -55,6 +56,17 @@ describe("sample school coordinates", () => {
 });
 
 describe("Bongseon main building frontage", () => {
+  it("keeps legacy front work and a rear painting at the same coordinates distinct after saving", () => {
+    const front: SchoolSurfaceStroke = {
+      id: "old", materialId: "walking-path", points: [{ x: 0.5, y: 0.6 }], widthMeters: 1, zIndex: 1,
+    };
+    const rear: SchoolSurfaceStroke = { ...front, id: "new", gardenSide: "rear", zIndex: 2 };
+    const saved: SchoolSurfaceStroke[] = JSON.parse(JSON.stringify([front, rear]));
+    expect(saved.filter((item) => isOnSchoolGardenSide(item, "front"))).toEqual([front]);
+    expect(saved.filter((item) => isOnSchoolGardenSide(item, "rear"))).toEqual([rear]);
+    expect(isOnSchoolGardenSide({ gardenSide: "front" }, "rear")).toBe(false);
+  });
+
   it("matches only the requested middle school, including the short or regional name", () => {
     for (const name of ["봉선중", "봉선중학교", "광주광역시 남구 봉선중학교", "광주 봉선중"]) {
       expect(isBongsunSchool(name)).toBe(true);

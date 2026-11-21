@@ -1,3 +1,5 @@
+import type { SchoolGardenSide } from "@/domain/models";
+
 // Camera angles shared by the painted and unpainted compatibility renders.
 export const BONGSUN_VIEWS = [
   { frame: "front-m45", angle: -45 }, { frame: "front-m34", angle: -33.75 },
@@ -7,3 +9,12 @@ export const BONGSUN_VIEWS = [
   { frame: "front-right", angle: 22.5 }, { frame: "front-p34", angle: 33.75 },
   { frame: "front-p45", angle: 45 },
 ] as const;
+
+export function getBongsunFrameUrl(
+  side: SchoolGardenSide,
+  frame: (typeof BONGSUN_VIEWS)[number]["frame"],
+  planted = false,
+) {
+  const key = side === "rear" ? frame.replace("front", "rear") : frame;
+  return `/previews/bongsun/${key}${planted ? "-planted" : ""}.webp`;
+}

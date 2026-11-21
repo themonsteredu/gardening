@@ -1,20 +1,20 @@
 "use client";
 
-import { useMemo, useRef, useState, type ComponentProps, type PointerEvent } from "react";
+import { useId, useMemo, useRef, useState, type ComponentProps, type PointerEvent } from "react";
 import { PerspectiveCamera, Plane, Raycaster, Vector2, Vector3 } from "three";
 import type { SampleSchool3DScene } from "./SampleSchool3DScene";
 import { findLandscapeMaterial } from "@/data/landscape-materials";
-import type { LandscapeObject, Point2D, SchoolSurfaceStroke } from "@/domain/models";
+import type { LandscapeObject, Point2D, SchoolGardenSide, SchoolSurfaceStroke } from "@/domain/models";
 import {
   findSampleSchoolSurfaceMaterial, isSampleSchoolSurfacePlacementAllowed,
   normalizedToSampleSchool, sampleSchoolToNormalized, SAMPLE_SCHOOL_SURFACE_MATERIALS,
 } from "@/lib/sample-school";
-import { BONGSUN_VIEWS as VIEWS } from "@/lib/bongsun-views";
+import { BONGSUN_VIEWS as VIEWS, getBongsunFrameUrl } from "@/lib/bongsun-views";
 import styles from "./BongsunCompatibleEditor.module.css";
 
 type Props = Pick<ComponentProps<typeof SampleSchool3DScene>,
   "objects" | "surfaceStrokes" | "selectedId" | "activeMaterialId" | "activeSurfaceId" |
-  "cameraView" | "cameraResetKey" | "onPaintSurface" | "onPlace" | "onMove" | "onSelect">;
+  "cameraView" | "gardenSide" | "cameraResetKey" | "onPaintSurface" | "onPlace" | "onMove" | "onSelect">;
 
 // The baked backgrounds and the WebGL scene share a camera in the same world coordinates.
 const WIDTH = 1100;
@@ -107,10 +107,67 @@ type Gesture = {
 
 export function BongsunCompatibleEditor(props: Props) {
   // Remount when a toolbar view is selected, including repeated clicks on the same view.
-  return <EditorView key={props.cameraView + "-" + (props.cameraResetKey ?? 0)} {...props} />;
+  return <EditorView key={`${props.gardenSide}-${props.cameraView}-${props.cameraResetKey ?? 0}`} {...props} />;
 }
 
-function EditorView({ objects, surfaceStrokes, selectedId, activeMaterialId, activeSurfaceId, cameraView,
+type GardenLayersProps = Pick<Props, "objects" | "surfaceStrokes"> & {
+  camera: PerspectiveCamera;
+  gardenSide: SchoolGardenSide;
+  view: number;
+  selectedId?: Props["selectedId"];
+  onSelect?: Props["onSelect"];
+};
+
+function GardenLayers({ objects, surfaceStrokes, camera, gardenSide, view, selectedId, onSelect }: GardenLayersProps) {
+  const brushPrefix = useId() + "-brush-";
+  const strokes = useMemo(() => [...surfaceStrokes].sort((a, b) => a.zIndex - b.zIndex)
+    .map(stroke => ({ stroke, d: strokePath(stroke, camera) })), [surfaceStrokes, camera]);
+  const sprites = useMemo(() => objects.map(o => spriteFor(o, camera))
+    .filter(s => s !== null).sort((a, b) => b.depth - a.depth || a.object.zIndex - b.object.zIndex), [objects, camera]);
+  return <>
+    <defs>
+      {SAMPLE_SCHOOL_SURFACE_MATERIALS.map(s => <pattern key={s.id} id={brushPrefix + s.id}
+        patternUnits="userSpaceOnUse" width={64} height={22}>
+        <image href={s.textureUrl} width={64} height={22} preserveAspectRatio="none" />
+      </pattern>)}
+    </defs>
+    <image href={getBongsunFrameUrl(gardenSide, VIEWS[view].frame)} width={WIDTH} height={HEIGHT}
+      aria-label={`${gardenSide === "rear" ? "수업용 뒤뜰" : "본관"} ${VIEWS[view].angle === 0 ? "정면" : VIEWS[view].angle < 0 ? "왼쪽" : "오른쪽"}`} />
+    {strokes.map(({ stroke, d }) => <path key={stroke.id} d={d} fill={`url(#${brushPrefix}${stroke.materialId})`} />)}
+    {sprites.map(({ object, material, anchor, src, width, height }) => (
+      <g key={object.id} data-object={onSelect ? object.id : undefined} className={onSelect ? styles.item : undefined}
+        transform={`translate(${anchor.x} ${anchor.y})`} tabIndex={onSelect ? 0 : undefined} role={onSelect ? "button" : undefined}
+        aria-label={onSelect ? material.name + " 선택" : undefined} aria-pressed={onSelect ? selectedId === object.id : undefined}
+        onKeyDown={onSelect ? event => {
+          if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(object.id); }
+        } : undefined}>
+        {onSelect && <rect width={width} height={height} x={-width / 2} y={-height} fill="transparent" />}
+        {selectedId === object.id && <ellipse rx={width * 0.53} ry={Math.max(3, width * 0.09)}
+          fill="none" stroke="#ffcf4d" strokeWidth={3} />}
+        {src ? <image href={src} x={-width / 2} y={-height} width={width} height={height}
+          preserveAspectRatio="none" /> : <ellipse cy={-height / 2} rx={width / 2} ry={height / 2} fill={material.color} />}
+      </g>
+    ))}
+  </>;
+}
+
+export function BongsunGardenSnapshot({ gardenSide, objects, surfaceStrokes }: {
+  gardenSide: SchoolGardenSide;
+  objects: LandscapeObject[];
+  surfaceStrokes: SchoolSurfaceStroke[];
+}) {
+  const view = VIEWS.findIndex(v => v.angle === 0);
+  const camera = useMemo(() => makeCamera(view), [view]);
+  return (
+    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img"
+      aria-label={gardenSide === "rear" ? "봉선중학교 수업용 뒤뜰 설계" : "봉선중학교 본관 앞 설계"}
+      style={{ display: "block", width: "100%", height: "auto" }}>
+      <GardenLayers objects={objects} surfaceStrokes={surfaceStrokes} camera={camera} gardenSide={gardenSide} view={view} />
+    </svg>
+  );
+}
+
+function EditorView({ objects, surfaceStrokes, selectedId, activeMaterialId, activeSurfaceId, cameraView, gardenSide = "front",
   onPlace, onMove, onSelect, onPaintSurface }: Props) {
   const [view, setView] = useState(() => {
     const initial = VIEWS.findIndex(v => v.frame === cameraView);
@@ -122,10 +179,6 @@ function EditorView({ objects, surfaceStrokes, selectedId, activeMaterialId, act
   const gesture = useRef<Gesture | null>(null);
   const touches = useRef(new Map<number, Point2D>());
   const pinch = useRef<{ distance: number; anchor: Point2D; scale: number } | null>(null);
-  const strokes = useMemo(() => [...surfaceStrokes].sort((a, b) => a.zIndex - b.zIndex)
-    .map(stroke => ({ stroke, d: strokePath(stroke, camera) })), [surfaceStrokes, camera]);
-  const sprites = useMemo(() => objects.map(o => spriteFor(o, camera))
-    .filter(s => s !== null).sort((a, b) => b.depth - a.depth || a.object.zIndex - b.object.zIndex), [objects, camera]);
   const surface = activeSurfaceId && findSampleSchoolSurfaceMaterial(activeSurfaceId);
 
   function worldPointer(clientX: number, clientY: number) {
@@ -217,7 +270,7 @@ function EditorView({ objects, surfaceStrokes, selectedId, activeMaterialId, act
 
   return (
     <svg className={styles.editor} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="group"
-      aria-label="봉선중학교 본관 앞 화단 조경 편집" onPointerDown={down} onPointerMove={move}
+      aria-label={gardenSide === "rear" ? "봉선중학교 수업용 뒤뜰 조경 편집" : "봉선중학교 본관 앞 화단 조경 편집"} onPointerDown={down} onPointerMove={move}
       onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}
       onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }}
       onDrop={event => {
@@ -228,30 +281,9 @@ function EditorView({ objects, surfaceStrokes, selectedId, activeMaterialId, act
         if (id && point) onPlace(id, point);
       }} data-placing={Boolean(surface || activeMaterialId)}>
       <svg width={WIDTH} height={HEIGHT} overflow="hidden">
-        <defs>
-          {SAMPLE_SCHOOL_SURFACE_MATERIALS.map(s => <pattern key={s.id} id={"bongsun-brush-" + s.id}
-            patternUnits="userSpaceOnUse" width={64} height={22}>
-            <image href={s.textureUrl} width={64} height={22} preserveAspectRatio="none" />
-          </pattern>)}
-        </defs>
         <g ref={worldRef} transform={`translate(${zoom.x} ${zoom.y}) scale(${zoom.scale})`}>
-          <image href={`/previews/bongsun/${VIEWS[view].frame}.webp`} width={WIDTH} height={HEIGHT}
-            aria-label={VIEWS[view].angle === 0 ? "본관 정면" : VIEWS[view].angle < 0 ? "본관 왼쪽" : "본관 오른쪽"} />
-          {strokes.map(({ stroke, d }) => <path key={stroke.id} d={d} fill={`url(#bongsun-brush-${stroke.materialId})`} />)}
-          {sprites.map(({ object, material, anchor, src, width, height }) => (
-            <g key={object.id} data-object={object.id} className={styles.item}
-              transform={`translate(${anchor.x} ${anchor.y})`} tabIndex={0} role="button"
-              aria-label={material.name + " 선택"} aria-pressed={selectedId === object.id}
-              onKeyDown={event => {
-                if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(object.id); }
-              }}>
-              <rect width={width} height={height} x={-width / 2} y={-height} fill="transparent" />
-              {selectedId === object.id && <ellipse rx={width * 0.53} ry={Math.max(3, width * 0.09)}
-                fill="none" stroke="#ffcf4d" strokeWidth={3} />}
-              {src ? <image href={src} x={-width / 2} y={-height} width={width} height={height}
-                preserveAspectRatio="none" /> : <ellipse cy={-height / 2} rx={width / 2} ry={height / 2} fill={material.color} />}
-            </g>
-          ))}
+          <GardenLayers objects={objects} surfaceStrokes={surfaceStrokes} camera={camera}
+            gardenSide={gardenSide} view={view} selectedId={selectedId} onSelect={onSelect} />
         </g>
       </svg>
     </svg>

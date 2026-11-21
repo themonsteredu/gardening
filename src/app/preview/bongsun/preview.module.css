@@ -30,8 +30,9 @@
 .practice { display: inline-flex; align-items: center; min-height: 44px; padding: .6rem 1.1rem; border: 1px solid #49705c; border-radius: .6rem; color: var(--pine); text-decoration: none; font-weight: 700; }
 .practice:hover { background: #e0eade; }
 .controls strong { font-size: .92rem; }
-.switches { gap: .2rem; border-radius: .7rem; background: #edf2ee; padding: .23rem; }
-.switches button {
+.sideSwitch { display: inline-flex; margin: 0 0 .7rem; }
+.sideSwitch, .switches { gap: .2rem; border-radius: .7rem; background: #edf2ee; padding: .23rem; }
+.sideSwitch button, .switches button {
   min-height: 44px;
   min-width: 52px;
   padding: .55rem .9rem;
@@ -43,8 +44,8 @@
   font-size: .94rem;
   cursor: pointer;
 }
-.switches button:hover, .switches button:focus-visible { background: #d6e5db; }
-.switches button[aria-pressed="true"] { background: var(--pine); color: white; }
+.sideSwitch button:hover, .sideSwitch button:focus-visible, .switches button:hover, .switches button:focus-visible { background: #d6e5db; }
+.sideSwitch button[aria-pressed="true"], .switches button[aria-pressed="true"] { background: var(--pine); color: white; }
 .note { flex-wrap: wrap; gap: .35rem 1rem; margin-top: 1.3rem; font-size: .88rem; color: #526359; line-height: 1.6; }
 .frameViewer {
   position: absolute;

@@ -10,7 +10,8 @@ import {
   upsertLandscapeGalleryEntry,
 } from "@/lib/project-store";
 import { useBrowserStorageValue, writeBrowserStorage } from "@/lib/use-browser-storage";
-import { isBongsunSchool } from "@/lib/sample-school";
+import { BONGSUN_SCENE_VERSION } from "@/lib/sample-school";
+import { BongsunDesignReview } from "./BongsunDesignReview";
 import { LandscapeDesignPreview } from "@/components/student/LandscapeDesignPreview";
 
 export const INTENTION_KEYWORDS = ["휴식", "녹지", "이동", "경관", "자연친화", "놀이", "기타"] as const;
@@ -39,7 +40,8 @@ export function LandscapeIntentionForm({
   const [reason, setReason] = useState(design?.intentionReason ?? "");
   const [notice, setNotice] = useState("");
 
-  if (!design || design.objects.length === 0) {
+  const hasDesign = design && (design.objects.length > 0 || Boolean(design.surfaceStrokes?.length));
+  if (!hasDesign) {
     return (
       <main className="student-design-empty">
         <p className="eyebrow">STEP 08 · DESIGN STATEMENT</p>
@@ -51,7 +53,7 @@ export function LandscapeIntentionForm({
   }
 
   function submitDesign() {
-    if (!design || design.objects.length === 0) return;
+    if (!design || !hasDesign) return;
     const trimmedReason = reason.trim();
     if (!keyword) {
       setNotice("가장 중요하게 생각한 한 가지를 선택해 주세요.");
@@ -74,6 +76,7 @@ export function LandscapeIntentionForm({
       studentSessionId: sessionId,
       schoolProjectId: project.id,
       nickname,
+      sceneVersion: design.sceneVersion,
       objects: design.objects,
       surfaceStrokes: design.surfaceStrokes,
       intentionKeyword: keyword,
@@ -101,9 +104,11 @@ export function LandscapeIntentionForm({
       <div className="intention-layout">
         <section className="intention-design-review">
           <div className="intention-section-label"><span>01</span><div><strong>완성한 설계 확인</strong><small>제출 전 마지막 점검</small></div></div>
-          <LandscapeDesignPreview objects={design.objects} variant="plan" label={`${nickname}의 조경 배치도`} />
+          {design.sceneVersion === BONGSUN_SCENE_VERSION ? (
+            <BongsunDesignReview objects={design.objects} surfaceStrokes={design.surfaceStrokes} />
+          ) : <LandscapeDesignPreview objects={design.objects} variant="plan" label={`${nickname}의 조경 배치도`} />}
           <dl>
-            <div><dt>대상 공간</dt><dd>{project.schoolName} {isBongsunSchool(project.schoolName) ? "본관 앞" : "중앙 빈 공간"}</dd></div>
+            <div><dt>대상 공간</dt><dd>{project.schoolName} {design.sceneVersion === BONGSUN_SCENE_VERSION ? "본관 앞 · 수업용 뒤뜰" : "중앙 빈 공간"}</dd></div>
             <div><dt>설계 미션</dt><dd>{project.mission}</dd></div>
           </dl>
         </section>

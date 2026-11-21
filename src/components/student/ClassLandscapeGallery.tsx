@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { BONGSUN_SCENE_VERSION } from "@/lib/sample-school";
+import { BongsunDesignReview } from "./BongsunDesignReview";
 import { LandscapeDesignPreview } from "@/components/student/LandscapeDesignPreview";
 import { INTENTION_KEYWORDS } from "@/components/student/LandscapeIntentionForm";
 import { DEMO_GALLERY_ENTRIES } from "@/data/demo-gallery";
@@ -101,10 +103,12 @@ function GalleryCard({
         <div><span>{isMine ? "나의 설계" : "학생 설계자"}</span><strong>{isMine ? currentNickname : entry.nickname}</strong></div>
         <em>{entry.intentionKeyword} 중심</em>
       </header>
-      <div className="gallery-card-previews">
+      {entry.sceneVersion === BONGSUN_SCENE_VERSION ? (
+        <BongsunDesignReview objects={entry.objects} surfaceStrokes={entry.surfaceStrokes} />
+      ) : <div className="gallery-card-previews">
         <LandscapeDesignPreview objects={entry.objects} variant="plan" label={`${entry.nickname}의 조경 배치도 썸네일`} />
         <LandscapeDesignPreview objects={entry.objects} variant="spatial" label={`${entry.nickname}의 3D 미리보기`} />
-      </div>
+      </div>}
       <div className="gallery-card-body">
         <blockquote>“{entry.intentionReason}”</blockquote>
         <dl><div><dt>배치 재료</dt><dd>{entry.objects.length}개</dd></div><div><dt>사용 범주</dt><dd>{categories}종</dd></div></dl>

@@ -308,7 +308,7 @@ export function TeacherDashboard() {
 
             <div className="drawer-note">
               {isBongsunSchool(form.schoolName)
-                ? "학생은 봉선중학교 본관 정면을 보며 앞마당을 꾸밉니다."
+                ? "학생은 봉선중학교 본관 앞과 수업용 뒤뜰을 오가며 정원을 꾸밉니다."
                 : "학생은 학교명이 표시된 기본 3D 캠퍼스에서 조경을 시작합니다."}
             </div>
             <div className="drawer-actions">
@@ -353,9 +353,9 @@ function SetupPanel({
         <div className="teacher-sample-campus">
           <div className="teacher-sample-campus__mark"><span /><span /><span /></div>
           <div>
-            <small>{isBongsun ? "실제 학교 사진 기반" : "기본 실습 공간"}</small>
-            <strong>{project.schoolName} {isBongsun ? "본관 앞" : "3D 캠퍼스"}</strong>
-            <p>{isBongsun ? "본관 앞 화단에 꽃과 나무를 배치해요." : "본관 · 별관 · 운동장 · 중앙정원 · 보행로"}</p>
+            <small>{isBongsun ? "본관 정면 사진 기반" : "기본 실습 공간"}</small>
+            <strong>{project.schoolName} {isBongsun ? "본관 주변" : "3D 캠퍼스"}</strong>
+            <p>{isBongsun ? "본관 앞은 학교 전경 사진을 참고했고, 뒤뜰은 수업용 예시 공간이에요." : "본관 · 별관 · 운동장 · 중앙정원 · 보행로"}</p>
           </div>
           {isBongsun ? (
             <ul><li>정면 보기</li><li>좌우 회전</li></ul>
