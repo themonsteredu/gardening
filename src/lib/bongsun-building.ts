@@ -1,4 +1,4 @@
-import type { BufferGeometry, Matrix4, MeshStandardMaterial } from "three";
+import type { BufferGeometry, Matrix4, MeshStandardMaterial, Texture } from "three";
 
 type Three = typeof import("three");
 type BoxPart = { transform: Matrix4; color: number };
@@ -44,7 +44,7 @@ function brickwork(THREE: Three) {
 }
 
 /** Photo-guided massing of the field-facing school. +Z faces the editable garden. */
-export function createBongsunBuilding(THREE: Three) {
+export function createBongsunBuilding(THREE: Three, nameplate?: Texture) {
   const group = new THREE.Group();
   group.name = "봉선중학교 본관";
   const joinery: BoxPart[] = [];
@@ -87,6 +87,18 @@ export function createBongsunBuilding(THREE: Three) {
   box(green, 0, 10.39, -3.78, 63.95, 0.35, 0.15);
   box(green, -31.90, 10.39, 0.01, 0.15, 0.35, 7.70);
   box(green, 31.90, 10.39, 0.01, 0.15, 0.35, 7.70);
+
+  if (nameplate) {
+    // Fix the sign to the parapet over the main entrance, clear of the classroom windows.
+    box(0xc5bcab, 0, 10.14, 4.28, 14.78, 2.18, 0.32);
+    const sign = new THREE.Mesh(
+      new THREE.PlaneGeometry(14.7, 2.1),
+      new THREE.MeshBasicMaterial({ map: nameplate, toneMapped: false, transparent: true }),
+    );
+    sign.name = "봉선중학교 교표와 교명";
+    sign.position.set(0, 10.14, 4.46);
+    group.add(sign);
+  }
 
   // Broad stucco piers separate groups of finer brick window bays on the field side.
   for (const x of [-31.64, -23.75, -11.85, 0, 11.85, 23.75, 31.64]) {

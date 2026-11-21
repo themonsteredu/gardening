@@ -70,6 +70,8 @@ interface SceneCallbacks {
 }
 
 const LAWN_TEXTURE_URL = "/materials/landscape/lawn.webp";
+// The crest on this sign comes from the official bongsun.jge.ms.kr desktop header (images/common/logo.jpg).
+const BONGSUN_NAMEPLATE_URL = "/assets/schools/bongsun/nameplate.png";
 const LAWN_CELL_SIZE_METERS = 0.07;
 const LAWN_TEXTURE_TILE_METERS = 1.35;
 
@@ -304,7 +306,7 @@ function buildSampleCampus(runtime: SceneRuntime, schoolName: string, schoolLogo
 
   if (runtime.bongsun) {
     const school = new THREE.Group();
-    school.add(createBongsunBuilding(THREE), createBongsunSurroundings(THREE));
+    school.add(createBongsunBuilding(THREE, runtime.textures.get(BONGSUN_NAMEPLATE_URL)), createBongsunSurroundings(THREE));
     school.scale.setScalar(0.37);
     school.position.z = -5.5;
     campus.add(school);
@@ -1290,7 +1292,7 @@ export function SampleSchool3DScene({
             || objectsRef.current.some((object) => object.materialId === material.id))
           : LANDSCAPE_MATERIALS;
         const textureUrls = [...new Set([
-          ...(bongsun ? [CAMPUS_TEXTURE_URLS[0]] : CAMPUS_TEXTURE_URLS),
+          ...(bongsun ? [CAMPUS_TEXTURE_URLS[0], BONGSUN_NAMEPLATE_URL] : CAMPUS_TEXTURE_URLS),
           ...SAMPLE_SCHOOL_SURFACE_MATERIALS.map((material) => material.textureUrl),
           ...materials.flatMap((material) => [material.planAssetUrl, material.sideAssetUrl]).filter((url): url is string => Boolean(url)),
         ])];
