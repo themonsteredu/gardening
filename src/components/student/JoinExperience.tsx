@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { PlanPreview } from "@/components/PlanPreview";
-import { DEMO_CLASS_CODE, DEMO_PROJECT } from "@/data/demo-project";
-import type { SchoolProject, StudentLandscapeDesign, StudentSession } from "@/domain/models";
+import { BONGSUN_PRACTICE_PROJECT, DEMO_CLASS_CODE } from "@/data/demo-project";
+import type { StudentLandscapeDesign, StudentSession } from "@/domain/models";
 import { normalizeClassCode } from "@/lib/class-code";
+import { getSchoolSceneVersion } from "@/lib/sample-school";
 import {
   getStudentSessionStorageKey,
   getStudentLandscapeDesignStorageKey,
@@ -16,15 +17,16 @@ import {
 } from "@/lib/project-store";
 import { joinClassSchema } from "@/lib/validation";
 
-export function JoinExperience() {
+export function JoinExperience({ bongsunPreset }: { bongsunPreset: boolean }) {
   const router = useRouter();
-  const [classCode, setClassCode] = useState("");
+  const [classCode, setClassCode] = useState(bongsunPreset ? BONGSUN_PRACTICE_PROJECT.classCode : "");
+  const isBongsunPractice = classCode === BONGSUN_PRACTICE_PROJECT.classCode;
   const [nickname, setNickname] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   function fillDemoCode() {
-    setClassCode(DEMO_CLASS_CODE);
+    setClassCode(bongsunPreset ? BONGSUN_PRACTICE_PROJECT.classCode : DEMO_CLASS_CODE);
     setError(null);
   }
 
@@ -38,13 +40,10 @@ export function JoinExperience() {
       return;
     }
 
-    let activeProject: SchoolProject = DEMO_PROJECT;
-    const savedProject = window.localStorage.getItem(PROJECT_STORAGE_KEY);
-    if (savedProject) activeProject = parseStoredProject(savedProject);
-
-    const isDemoCode = normalizedCode === DEMO_CLASS_CODE;
-    const isCurrentTeacherCode = normalizedCode === activeProject.classCode;
-    if (!isDemoCode && !isCurrentTeacherCode) {
+    const activeProject = normalizedCode === BONGSUN_PRACTICE_PROJECT.classCode
+      ? BONGSUN_PRACTICE_PROJECT
+      : parseStoredProject(window.localStorage.getItem(PROJECT_STORAGE_KEY));
+    if (normalizedCode !== DEMO_CLASS_CODE && normalizedCode !== activeProject.classCode) {
       setError("수업 코드를 찾지 못했습니다. 교사에게 코드를 다시 확인해 주세요.");
       return;
     }
@@ -68,7 +67,7 @@ export function JoinExperience() {
       id: `landscape-design-${sessionId}`,
       studentSessionId: sessionId,
       schoolProjectId: activeProject.id,
-      sceneVersion: "sample-middle-school-v2",
+      sceneVersion: getSchoolSceneVersion(activeProject.schoolName, null),
       objects: [],
       surfaceStrokes: [],
       intentionKeyword: null,
@@ -95,10 +94,11 @@ export function JoinExperience() {
             <em>3D 학교 조경 설계자</em>입니다.
           </h1>
           <p>
-            샘플 중학교를 항공과 학생 시점으로 둘러보고,
-            실제 모습의 조경 재료를 직접 배치합니다.
+            {isBongsunPractice
+              ? "봉선중학교 본관을 정면으로 보며 앞마당에 꽃과 나무를 심어 보세요."
+              : "샘플 중학교를 항공과 학생 시점으로 둘러보고, 실제 모습의 조경 재료를 직접 배치합니다."}
           </p>
-          <PlanPreview variant="student" />
+          {!isBongsunPractice && <PlanPreview variant="student" />}
           <div className="join-principle">
             <span>설계 원칙</span>
             <p>보기 좋은 배치보다 공간을 사용하는 사람과 그 이유를 먼저 생각합니다.</p>
@@ -109,8 +109,8 @@ export function JoinExperience() {
           <div className="join-form-heading">
             <span>01</span>
             <div>
-              <p>수업 참여</p>
-              <h2 id="join-title">설계 프로젝트에 입장하기</h2>
+              <p>{isBongsunPractice ? "개인 연습" : "수업 참여"}</p>
+              <h2 id="join-title">{isBongsunPractice ? "봉선중 본관 앞 꾸미기" : "설계 프로젝트에 입장하기"}</h2>
             </div>
           </div>
 
@@ -121,7 +121,7 @@ export function JoinExperience() {
                 <input
                   id="class-code"
                   aria-describedby="class-code-help"
-                  autoFocus
+                  autoFocus={!bongsunPreset}
                   autoCapitalize="characters"
                   autoComplete="off"
                   inputMode="text"
@@ -133,15 +133,16 @@ export function JoinExperience() {
                     setError(null);
                   }}
                 />
-                <button type="button" onClick={fillDemoCode}>데모 코드</button>
+                <button type="button" onClick={fillDemoCode}>{bongsunPreset ? "연습 코드" : "데모 코드"}</button>
               </div>
-              <small id="class-code-help">선생님이 화면에 보여준 영문·숫자 코드를 입력하세요.</small>
+              <small id="class-code-help">{isBongsunPractice ? "이 코드는 어느 기기에서나 봉선중 개인 연습을 열어요." : "선생님이 화면에 보여준 영문·숫자 코드를 입력하세요."}</small>
             </div>
 
             <div className="form-field">
               <label htmlFor="student-nickname"><span>이름 또는 닉네임</span></label>
               <input
                 id="student-nickname"
+                autoFocus={bongsunPreset}
                 aria-describedby="student-nickname-help"
                 autoComplete="nickname"
                 maxLength={12}
@@ -164,8 +165,17 @@ export function JoinExperience() {
           </form>
 
           <div className="join-help">
-            <p>수업 코드를 모르겠나요?</p>
-            <span>선생님께 수업 코드를 확인하거나, 위의 데모 코드 버튼으로 체험해 보세요.</span>
+            {isBongsunPractice ? (
+              <>
+                <p>작품은 어디에 저장되나요?</p>
+                <span>개인 연습 작품은 지금 사용하는 기기의 브라우저에 저장돼요.</span>
+              </>
+            ) : (
+              <>
+                <p>수업 코드를 모르겠나요?</p>
+                <span>선생님께 수업 코드를 확인하거나, 위의 코드 버튼으로 체험해 보세요.</span>
+              </>
+            )}
           </div>
           <Link className="teacher-text-link" href="/teacher">교사라면 수업 설계실로 이동</Link>
         </section>

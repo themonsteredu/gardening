@@ -10,6 +10,7 @@ import {
   upsertLandscapeGalleryEntry,
 } from "@/lib/project-store";
 import { useBrowserStorageValue, writeBrowserStorage } from "@/lib/use-browser-storage";
+import { isBongsunSchool } from "@/lib/sample-school";
 import { LandscapeDesignPreview } from "@/components/student/LandscapeDesignPreview";
 
 export const INTENTION_KEYWORDS = ["휴식", "녹지", "이동", "경관", "자연친화", "놀이", "기타"] as const;
@@ -102,7 +103,7 @@ export function LandscapeIntentionForm({
           <div className="intention-section-label"><span>01</span><div><strong>완성한 설계 확인</strong><small>제출 전 마지막 점검</small></div></div>
           <LandscapeDesignPreview objects={design.objects} variant="plan" label={`${nickname}의 조경 배치도`} />
           <dl>
-            <div><dt>대상 공간</dt><dd>{project.schoolName} 중앙 빈 공간</dd></div>
+            <div><dt>대상 공간</dt><dd>{project.schoolName} {isBongsunSchool(project.schoolName) ? "본관 앞" : "중앙 빈 공간"}</dd></div>
             <div><dt>설계 미션</dt><dd>{project.mission}</dd></div>
           </dl>
         </section>

@@ -1,0 +1,29 @@
+.editor {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #e4eee9;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+
+.editor[data-placing="true"] {
+  cursor: crosshair;
+}
+
+.item {
+  cursor: grab;
+}
+
+.editor:active,
+.item:active {
+  cursor: grabbing;
+}
+
+.item:focus-visible {
+  outline: 2px solid #ffe19a;
+}

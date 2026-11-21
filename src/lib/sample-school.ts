@@ -1,8 +1,24 @@
-import type { Point2D, SchoolSurfaceMaterialId } from "@/domain/models";
+import type { Point2D, SchoolSurfaceMaterialId, StudentLandscapeDesign } from "@/domain/models";
 
 export const SAMPLE_SCHOOL_WIDTH_METERS = 30;
 export const SAMPLE_SCHOOL_DEPTH_METERS = 22;
 export const SAMPLE_SCHOOL_SCENE_VERSION = "sample-middle-school-v2" as const;
+export const BONGSUN_SCENE_VERSION = "bongsun-facade-v1" as const;
+export const BONGSUN_FRONT_GARDEN = { width: 24, depth: 10, centerZ: 3 } as const;
+
+export function isBongsunSchool(schoolName: string): boolean {
+  const name = schoolName.normalize("NFKC").replace(/\s/g, "");
+  return /^(?:(?:전라남도)?광주(?:광역시)?|전남광주(?:통합특별시)?)?(?:남구)?봉선중(?:학교)?$/.test(name);
+}
+
+export function getSchoolSceneVersion(schoolName: string, saved: StudentLandscapeDesign | null) {
+  if (saved?.sceneVersion === BONGSUN_SCENE_VERSION) return BONGSUN_SCENE_VERSION;
+  if (saved && (saved.objects.length > 0 || saved.surfaceStrokes?.length || saved.submittedAt)) {
+    return saved.sceneVersion ?? SAMPLE_SCHOOL_SCENE_VERSION;
+  }
+  return isBongsunSchool(schoolName) ? BONGSUN_SCENE_VERSION : SAMPLE_SCHOOL_SCENE_VERSION;
+}
+
 const SAMPLE_SCHOOL_EDGE_PADDING_METERS = 0.4;
 
 export interface SampleSchoolSurfaceMaterial {
@@ -59,8 +75,14 @@ export function sampleSchoolToNormalized(point: SampleSchoolWorldPoint): Point2D
 export function isSampleSchoolSurfacePointOpen(
   point: SampleSchoolWorldPoint,
   clearanceMeters = 0,
+  bongsun = false,
 ): boolean {
   const clearance = Math.max(0, clearanceMeters);
+  if (bongsun) {
+    const garden = BONGSUN_FRONT_GARDEN;
+    return Math.abs(point.x) < garden.width / 2 - clearance
+      && Math.abs(point.z - garden.centerZ) < garden.depth / 2 - clearance;
+  }
   if (
     Math.abs(point.x) >= SAMPLE_SCHOOL_WIDTH_METERS / 2 - clearance
     || Math.abs(point.z) >= SAMPLE_SCHOOL_DEPTH_METERS / 2 - clearance
@@ -75,11 +97,13 @@ export function isSampleSchoolSurfacePointOpen(
 export function isSampleSchoolSurfacePlacementAllowed(
   point: Point2D,
   widthMeters: number,
+  bongsun = false,
 ): boolean {
   if (!Number.isFinite(point.x) || !Number.isFinite(point.y) || !Number.isFinite(widthMeters)) return false;
   return isSampleSchoolSurfacePointOpen(
     normalizedToSampleSchool(point),
     Math.max(0, widthMeters) / 2,
+    bongsun,
   );
 }
 
@@ -97,9 +121,10 @@ export function getSampleSchoolPlacementClearance(materialId: string, footprintR
   return footprintRadius;
 }
 
-export function isSampleSchoolPlacementAllowed(point: Point2D, radiusMeters = 0.45): boolean {
+export function isSampleSchoolPlacementAllowed(point: Point2D, radiusMeters = 0.45, bongsun = false): boolean {
   if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return false;
   const world = normalizedToSampleSchool(point);
+  if (bongsun) return isSampleSchoolSurfacePointOpen(world, radiusMeters, true);
   const edgePadding = SAMPLE_SCHOOL_EDGE_PADDING_METERS + radiusMeters;
   if (
     Math.abs(world.x) > SAMPLE_SCHOOL_WIDTH_METERS / 2 - edgePadding

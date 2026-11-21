@@ -1,0 +1,82 @@
+.page {
+  --pine: #214e3c;
+  max-width: 90rem;
+  margin: 0 auto;
+  padding: clamp(1rem, 3vw, 3rem);
+  color: #233e32;
+  word-break: keep-all;
+}
+.heading, .controls, .controls > div, .switches, .note {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+.heading, .controls, .note { justify-content: space-between; }
+.heading { margin-bottom: 1.3rem; }
+.heading p { margin: 0 0 .35rem; color: #53725f; font-size: .95rem; }
+.heading h1 { margin: 0; font-size: clamp(1.55rem, 3.3vw, 2.7rem); line-height: 1.25; letter-spacing: -.05em; }
+.heading a { color: var(--pine); text-underline-offset: .25em; font-size: .95rem; }
+.viewer {
+  position: relative;
+  min-height: 18rem;
+  height: clamp(21rem, 55svh, 37rem);
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid #c8d8ce;
+  border-radius: 1rem;
+  background: #d8e7ec;
+}
+.controls { flex-wrap: wrap; margin-top: 1rem; }
+.practice { display: inline-flex; align-items: center; min-height: 44px; padding: .6rem 1.1rem; border: 1px solid #49705c; border-radius: .6rem; color: var(--pine); text-decoration: none; font-weight: 700; }
+.practice:hover { background: #e0eade; }
+.controls strong { font-size: .92rem; }
+.switches { gap: .2rem; border-radius: .7rem; background: #edf2ee; padding: .23rem; }
+.switches button {
+  min-height: 44px;
+  min-width: 52px;
+  padding: .55rem .9rem;
+  border: 0;
+  border-radius: .5rem;
+  background: transparent;
+  color: #274c3b;
+  font: inherit;
+  font-size: .94rem;
+  cursor: pointer;
+}
+.switches button:hover, .switches button:focus-visible { background: #d6e5db; }
+.switches button[aria-pressed="true"] { background: var(--pine); color: white; }
+.note { flex-wrap: wrap; gap: .35rem 1rem; margin-top: 1.3rem; font-size: .88rem; color: #526359; line-height: 1.6; }
+.frameViewer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: linear-gradient(#dce8ec 0%, #e7ede4 65%, #d8d8c5);
+  touch-action: pan-y;
+  user-select: none;
+  cursor: grab;
+}
+.frameViewer:active { cursor: grabbing; }
+.frameViewer:focus-visible { outline: 3px solid var(--pine); outline-offset: -4px; }
+.frameImage { object-fit: contain; pointer-events: none; }
+.frameHint {
+  position: absolute;
+  left: .75rem;
+  bottom: .75rem;
+  padding: .35rem .65rem;
+  border-radius: .45rem;
+  background: rgb(29 53 44 / 88%);
+  color: white;
+  font-size: .85rem;
+  pointer-events: none;
+}
+@media (max-width: 640px) {
+  .viewer { height: clamp(17rem, 42svh, 25rem); min-height: 0; }
+  .controls { align-items: start; gap: .6rem 1.25rem; }
+  .controls > div { align-items: start; flex-direction: column; gap: .35rem; }
+  .heading { align-items: end; }
+  .heading a { font-size: .82rem; }
+  .switches button { padding-inline: .65rem; }
+}
+
+.loading { position: absolute; inset: 0; display: grid; place-items: center; color: #284c3e; pointer-events: none; }

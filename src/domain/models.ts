@@ -133,7 +133,7 @@ export interface StudentLandscapeDesign {
   id: string;
   studentSessionId: string;
   schoolProjectId: string;
-  sceneVersion?: "photo-plan-v1" | "sample-middle-school-v1" | "sample-middle-school-v2";
+  sceneVersion?: "photo-plan-v1" | "sample-middle-school-v1" | "sample-middle-school-v2" | "bongsun-facade-v1";
   objects: LandscapeObject[];
   surfaceStrokes?: SchoolSurfaceStroke[];
   intentionKeyword: string | null;

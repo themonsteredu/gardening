@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { SampleSchool3DScene, type SampleSchoolCameraView } from "@/components/student/SampleSchool3DScene";
 import { findLandscapeMaterial, LANDSCAPE_MATERIALS, type PlanLandscapeMaterial } from "@/data/landscape-materials";
 import type {
@@ -15,16 +15,19 @@ import type {
 import { createLandscapeObject } from "@/lib/landscape-design";
 import { getStudentLandscapeDesignStorageKey, parseStoredLandscapeDesign } from "@/lib/project-store";
 import {
+  BONGSUN_SCENE_VERSION,
+  getSchoolSceneVersion,
   getSampleSchoolPlacementClearance,
   findSampleSchoolSurfaceMaterial,
   isSampleSchoolPlacementAllowed,
   SAMPLE_SCHOOL_DEPTH_METERS,
-  SAMPLE_SCHOOL_SCENE_VERSION,
   SAMPLE_SCHOOL_SURFACE_MATERIALS,
   SAMPLE_SCHOOL_WIDTH_METERS,
   type SampleSchoolSurfaceMaterial,
 } from "@/lib/sample-school";
 import { useBrowserStorageValue, writeBrowserStorage } from "@/lib/use-browser-storage";
+
+const subscribeHydration = () => () => undefined;
 
 type MaterialPickerGroup = "trees" | "flowers" | "facilities";
 
@@ -64,9 +67,12 @@ export function SampleSchool3DStudio({
   const designValue = useBrowserStorageValue("local", designStorageKey);
   const storedDesign = useMemo(() => parseStoredLandscapeDesign(designValue), [designValue]);
 
+  // Wait for browser storage before seeding editable state, including existing v2 sessions.
+  const hydrated = useSyncExternalStore(subscribeHydration, () => true, () => false);
+  if (!hydrated) return null;
   return (
     <SampleSchool3DWorkspace
-      key={sessionId}
+      key={sessionId + getSchoolSceneVersion(project.schoolName, storedDesign)}
       project={project}
       nickname={nickname}
       sessionId={sessionId}
@@ -92,18 +98,20 @@ function SampleSchool3DWorkspace({
   designStorageKey: string;
   onContinue: () => void;
 }) {
-  const isCurrentScene = storedDesign?.sceneVersion === SAMPLE_SCHOOL_SCENE_VERSION;
-  const startingObjects = isCurrentScene ? storedDesign.objects : [];
-  const startingStrokes = isCurrentScene ? storedDesign.surfaceStrokes ?? [] : [];
+  const sceneVersion = getSchoolSceneVersion(project.schoolName, storedDesign);
+  const bongsun = sceneVersion === BONGSUN_SCENE_VERSION;
+  const startingObjects = storedDesign?.objects ?? [];
+  const startingStrokes = storedDesign?.surfaceStrokes ?? [];
   const [objects, setObjects] = useState<LandscapeObject[]>(startingObjects);
   const [surfaceStrokes, setSurfaceStrokes] = useState<SchoolSurfaceStroke[]>(startingStrokes);
-  const [toolMode, setToolMode] = useState<"surface" | "objects">("surface");
-  const [materialGroup, setMaterialGroup] = useState<MaterialPickerGroup>("trees");
+  const [toolMode, setToolMode] = useState<"surface" | "objects">(bongsun ? "objects" : "surface");
+  const [materialGroup, setMaterialGroup] = useState<MaterialPickerGroup>(bongsun ? "flowers" : "trees");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeMaterialId, setActiveMaterialId] = useState<string | null>(null);
   const [activeSurfaceId, setActiveSurfaceId] = useState<SchoolSurfaceMaterialId | null>(null);
-  const [cameraView, setCameraView] = useState<SampleSchoolCameraView>("orbit");
-  const [notice, setNotice] = useState("먼저 바닥 재료를 골라 빈 땅에 그려보세요.");
+  const [cameraView, setCameraView] = useState<SampleSchoolCameraView>(bongsun ? "front" : "orbit");
+  const [cameraResetKey, setCameraResetKey] = useState(0);
+  const [notice, setNotice] = useState(bongsun ? "좌우로 밀어 본관을 둘러보세요. 꽃을 고른 뒤 본관 앞 흙을 누르면 심을 수 있어요." : "먼저 바닥 재료를 골라 빈 땅에 그려보세요.");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
     startingObjects.length > 0 || startingStrokes.length > 0 ? "saved" : "idle",
   );
@@ -118,7 +126,7 @@ function SampleSchool3DWorkspace({
       id: designId,
       studentSessionId: sessionId,
       schoolProjectId: project.id,
-      sceneVersion: SAMPLE_SCHOOL_SCENE_VERSION,
+      sceneVersion,
       objects: nextObjects,
       surfaceStrokes: nextStrokes,
       intentionKeyword: storedDesign?.intentionKeyword ?? null,
@@ -129,7 +137,7 @@ function SampleSchool3DWorkspace({
     writeBrowserStorage("local", designStorageKey, JSON.stringify(design));
     hasUnsavedChangeRef.current = false;
     setSaveState("saved");
-  }, [designId, designStorageKey, project.id, sessionId, storedDesign]);
+  }, [designId, designStorageKey, project.id, sceneVersion, sessionId, storedDesign]);
 
   useEffect(() => {
     if (!hasUnsavedChangeRef.current) return;
@@ -183,22 +191,22 @@ function SampleSchool3DWorkspace({
   const placeMaterial = useCallback((materialId: string, point: Point2D) => {
     const material = findLandscapeMaterial(materialId);
     if (!material) return;
-    if (!isSampleSchoolPlacementAllowed(point, materialPlacementClearance(material))) {
-      setNotice("건물과 학교 경계를 피해 빈 공간에 놓아주세요.");
+    if (!isSampleSchoolPlacementAllowed(point, materialPlacementClearance(material), bongsun)) {
+      setNotice(bongsun ? "본관과 운동장 사이의 흙 위에 놓아주세요." : "건물과 학교 경계를 피해 빈 공간에 놓아주세요.");
       return;
     }
     const id = `landscape-object-${crypto.randomUUID()}`;
     changeObjects((current) => [...current, createLandscapeObject(material, point, current.length + 1, id)]);
     setSelectedId(id);
     setNotice(`${material.name} 배치 완료 · 끌어서 위치를 바꿀 수 있어요.`);
-  }, [changeObjects]);
+  }, [bongsun, changeObjects]);
 
   const moveObject = useCallback((objectId: string, point: Point2D) => {
     const object = objects.find((item) => item.id === objectId);
     const material = object ? findLandscapeMaterial(object.materialId) : null;
-    if (!object || !material || !isSampleSchoolPlacementAllowed(point, materialPlacementClearance(material, object.scale))) return;
+    if (!object || !material || !isSampleSchoolPlacementAllowed(point, materialPlacementClearance(material, object.scale), bongsun)) return;
     changeObjects((current) => current.map((item) => item.id === objectId ? { ...item, ...point } : item));
-  }, [changeObjects, objects]);
+  }, [bongsun, changeObjects, objects]);
 
   function updateSelected(patch: Partial<LandscapeObject>) {
     if (!selectedObject) return;
@@ -208,7 +216,7 @@ function SampleSchool3DWorkspace({
   function resizeSelected(delta: number) {
     if (!selectedObject || !selectedMaterial) return;
     const scale = Math.max(0.55, Math.min(1.8, selectedObject.scale + delta));
-    if (!isSampleSchoolPlacementAllowed(selectedObject, materialPlacementClearance(selectedMaterial, scale))) {
+    if (!isSampleSchoolPlacementAllowed(selectedObject, materialPlacementClearance(selectedMaterial, scale), bongsun)) {
       setNotice("건물과 겹치지 않는 곳에서 크기를 조절해 주세요.");
       return;
     }
@@ -219,7 +227,7 @@ function SampleSchool3DWorkspace({
   function duplicateSelected() {
     if (!selectedObject || !selectedMaterial) return;
     const candidate = { x: Math.min(0.96, selectedObject.x + 0.045), y: Math.min(0.96, selectedObject.y + 0.045) };
-    const position = isSampleSchoolPlacementAllowed(candidate, materialPlacementClearance(selectedMaterial, selectedObject.scale))
+    const position = isSampleSchoolPlacementAllowed(candidate, materialPlacementClearance(selectedMaterial, selectedObject.scale), bongsun)
       ? candidate
       : { x: selectedObject.x, y: selectedObject.y };
     const copy: LandscapeObject = {
@@ -248,6 +256,15 @@ function SampleSchool3DWorkspace({
     setNotice(nextMode === "surface"
       ? "바닥 재료를 고른 뒤 빈 땅에 손가락이나 마우스로 그리세요."
       : "실사 조경물을 고른 뒤 원하는 자리에 놓으세요.");
+  }
+
+  function viewFrontage(view: SampleSchoolCameraView) {
+    setActiveSurfaceId(null);
+    setActiveMaterialId(null);
+    setSelectedId(null);
+    setCameraView(view);
+    setCameraResetKey((previous) => previous + 1);
+    setNotice("좌우로 밀어 본관을 돌려보세요. 두 손가락으로 확대할 수 있어요.");
   }
 
   const hasDesign = objects.length > 0 || surfaceStrokes.length > 0;
@@ -336,14 +353,20 @@ function SampleSchool3DWorkspace({
       <section className="sample-school-workspace">
         <header className="sample-school-toolbar">
           <div className="sample-school-toolbar__title">
-            <small>빈 학교에서 시작하는 3D 조경</small>
+            <small>{bongsun ? "본관 앞 조경" : "빈 학교에서 시작하는 3D 조경"}</small>
             <strong>{project.schoolName}</strong>
           </div>
           <div className="sample-camera-tabs" role="group" aria-label="학교 보는 시점">
+            {bongsun ? <>
+              <button type="button" onClick={() => viewFrontage("front-left")}>왼쪽</button>
+              <button type="button" onClick={() => viewFrontage("front")}>정면</button>
+              <button type="button" onClick={() => viewFrontage("front-right")}>오른쪽</button>
+            </> : <>
             <button type="button" className={cameraView === "aerial" ? "is-active" : ""} onClick={() => setCameraView("aerial")}>항공샷</button>
             <button type="button" className={cameraView === "orbit" ? "is-active" : ""} onClick={() => setCameraView("orbit")}>입체</button>
             <button type="button" className={cameraView === "rear" ? "is-active" : ""} onClick={() => setCameraView("rear")}>뒤·옆</button>
             <button type="button" className={cameraView === "walk" ? "is-active" : ""} onClick={() => setCameraView("walk")}>학생 시점</button>
+            </>}
           </div>
           <div className="sample-school-toolbar__status">
             <span>{saveState === "saving" ? "저장 중" : saveState === "saved" ? "자동 저장됨" : "새 설계"}</span>
@@ -361,6 +384,8 @@ function SampleSchool3DWorkspace({
             activeMaterialId={activeMaterialId}
             activeSurfaceId={activeSurfaceId}
             cameraView={cameraView}
+            cameraResetKey={cameraResetKey}
+            bongsun={bongsun}
             onPaintSurface={paintSurface}
             onPlace={placeMaterial}
             onMove={moveObject}
@@ -373,8 +398,8 @@ function SampleSchool3DWorkspace({
             }}
           />
           <div className="sample-school-canvas__badge">
-            <strong>{toolMode === "surface" ? "빈 땅부터 직접 만들기" : cameraView === "aerial" ? "학교 전체 배치" : cameraView === "walk" ? "학생 눈높이" : cameraView === "rear" ? "학교 뒤·옆 보기" : "360° 입체 보기"}</strong>
-            <span>{toolMode === "surface" ? "바닥 재료를 골라 드래그" : cameraView === "aerial" ? "항공에서 위치 확인" : cameraView === "rear" ? "건물 뒤 공간도 꾸며보세요" : "드래그해 둘러보기"}</span>
+            <strong>{bongsun ? "봉선중 본관 앞" : toolMode === "surface" ? "빈 땅부터 직접 만들기" : cameraView === "aerial" ? "학교 전체 배치" : cameraView === "walk" ? "학생 눈높이" : cameraView === "rear" ? "학교 뒤·옆 보기" : "360° 입체 보기"}</strong>
+            <span>{bongsun ? "공식 전경 사진을 참고한 3D 모형" : toolMode === "surface" ? "바닥 재료를 골라 드래그" : cameraView === "aerial" ? "항공에서 위치 확인" : cameraView === "rear" ? "건물 뒤 공간도 꾸며보세요" : "드래그해 둘러보기"}</span>
           </div>
           <p className="sample-school-notice" role="status">{notice}</p>
         </div>

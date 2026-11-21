@@ -10,6 +10,7 @@ import {
   type SchoolProject,
 } from "@/domain/models";
 import { generateClassCode } from "@/lib/class-code";
+import { isBongsunSchool } from "@/lib/sample-school";
 import {
   createSchoolLogoDataUrl,
   SCHOOL_LOGO_ACCEPT,
@@ -234,6 +235,17 @@ export function TeacherDashboard() {
                   maxLength={40}
                 />
               </label>
+              {!isBongsunSchool(form.schoolName) && (
+                <div>
+                  <button
+                    className="school-logo-button"
+                    type="button"
+                    onClick={() => setForm((current) => ({ ...current, schoolName: "봉선중학교" }))}
+                  >
+                    광주 봉선중학교 선택
+                  </button>
+                </div>
+              )}
               <div className="school-logo-field">
                 <span className="school-logo-field__label">학교 로고</span>
                 <div className="school-logo-field__content">
@@ -295,7 +307,9 @@ export function TeacherDashboard() {
             </div>
 
             <div className="drawer-note">
-              모든 학생은 같은 3D 샘플 중학교에서 조경을 시작합니다.
+              {isBongsunSchool(form.schoolName)
+                ? "학생은 봉선중학교 본관 정면을 보며 앞마당을 꾸밉니다."
+                : "학생은 학교명이 표시된 기본 3D 캠퍼스에서 조경을 시작합니다."}
             </div>
             <div className="drawer-actions">
               <button className="button button--quiet" type="button" onClick={() => setEditorOpen(false)}>
@@ -327,6 +341,7 @@ function SetupPanel({
   onStart: () => void;
 }) {
   const hasKit = Boolean(project.miniGardenKitId && miniGardenKits.some((kit) => kit.id === project.miniGardenKitId));
+  const isBongsun = isBongsunSchool(project.schoolName);
 
   return (
     <section className="dashboard-content dashboard-content--setup">
@@ -337,10 +352,19 @@ function SetupPanel({
         </header>
         <div className="teacher-sample-campus">
           <div className="teacher-sample-campus__mark"><span /><span /><span /></div>
-          <div><small>기본 실습 공간</small><strong>{project.schoolName} 3D 캠퍼스</strong><p>본관 · 별관 · 운동장 · 중앙정원 · 보행로</p></div>
-          <ul><li>항공샷</li><li>360° 입체</li><li>학생 시점</li></ul>
+          <div>
+            <small>{isBongsun ? "실제 학교 사진 기반" : "기본 실습 공간"}</small>
+            <strong>{project.schoolName} {isBongsun ? "본관 앞" : "3D 캠퍼스"}</strong>
+            <p>{isBongsun ? "본관 앞 화단에 꽃과 나무를 배치해요." : "본관 · 별관 · 운동장 · 중앙정원 · 보행로"}</p>
+          </div>
+          {isBongsun ? (
+            <ul><li>정면 보기</li><li>좌우 회전</li></ul>
+          ) : (
+            <ul><li>항공샷</li><li>360° 입체</li><li>학생 시점</li></ul>
+          )}
         </div>
         <div className="teacher-simple-actions">
+          <Link className="button button--quiet" href="/preview/bongsun">봉선중 본관 미리보기</Link>
           <Link className="button button--quiet" href="/teacher/mini-garden-kit">{hasKit ? "오늘의 재료 바꾸기" : "오늘의 재료 준비"}</Link>
           <button className="button button--primary" type="button" onClick={onStart}>수업 시작</button>
         </div>

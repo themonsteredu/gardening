@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import type {
   Group,
   Material,
@@ -17,7 +18,10 @@ import type {
 import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { findLandscapeMaterial, LANDSCAPE_MATERIALS, type PlanLandscapeMaterial } from "@/data/landscape-materials";
 import type { LandscapeObject, Point2D, SchoolSurfaceMaterialId, SchoolSurfaceStroke } from "@/domain/models";
+import { createBongsunBuilding, createBongsunSurroundings } from "@/lib/bongsun-building";
 import {
+  BONGSUN_FRONT_GARDEN,
+  isBongsunSchool,
   isSampleSchoolSurfacePointOpen,
   isSampleSchoolSurfacePlacementAllowed,
   SAMPLE_SCHOOL_DEPTH_METERS,
@@ -26,7 +30,9 @@ import {
   sampleSchoolToNormalized,
 } from "@/lib/sample-school";
 
-export type SampleSchoolCameraView = "aerial" | "orbit" | "rear" | "walk";
+const BongsunCompatibleEditor = dynamic(() => import("./BongsunCompatibleEditor").then((module) => module.BongsunCompatibleEditor));
+
+export type SampleSchoolCameraView = "front" | "front-left" | "front-right" | "aerial" | "orbit" | "rear" | "walk";
 
 const CAMPUS_TEXTURE_URLS = [
   "/assets/photoreal/bare-soil-texture.png",
@@ -35,6 +41,7 @@ const CAMPUS_TEXTURE_URLS = [
 ] as const;
 
 interface SceneRuntime {
+  bongsun: boolean;
   THREE: typeof import("three");
   scene: Scene;
   camera: PerspectiveCamera;
@@ -66,19 +73,22 @@ const LAWN_TEXTURE_URL = "/materials/landscape/lawn.webp";
 const LAWN_CELL_SIZE_METERS = 0.07;
 const LAWN_TEXTURE_TILE_METERS = 1.35;
 
-function disposeObject(root: Object3D) {
+function disposeObject(root: Object3D, keepMaterials = false) {
   root.traverse((object) => {
-    const candidate = object as Object3D & { geometry?: { dispose: () => void }; material?: Material | Material[] };
-    candidate.geometry?.dispose();
+    // GLTF clones share their template resources. Three.js sprites share a single geometry.
+    if (object.userData.templateMesh) return;
+    const candidate = object as Object3D & { isSprite?: boolean; geometry?: { dispose: () => void }; material?: Material | Material[] };
+    if (!candidate.isSprite) candidate.geometry?.dispose();
+    if (keepMaterials) return;
     const materials = Array.isArray(candidate.material) ? candidate.material : candidate.material ? [candidate.material] : [];
     for (const material of materials) material.dispose();
   });
 }
 
-function clearGroup(group: Group, dispose = true) {
+function clearGroup(group: Group, keepMaterials = false) {
   for (const child of [...group.children]) {
     group.remove(child);
-    if (dispose) disposeObject(child);
+    disposeObject(child, keepMaterials);
   }
 }
 
@@ -95,11 +105,27 @@ function setInteractiveObjectId(root: Object3D, id: string) {
   root.traverse((object) => { object.userData.landscapeObjectId = id; });
 }
 
+function frontageCameraDistance(aspect: number) {
+  // Fit the complete 24-unit facade into the horizontal field of view, including tablets in portrait.
+  return Math.max(14, 13.2 / (Math.tan(42 * Math.PI / 360) * Math.max(0.45, aspect)));
+}
+
 function applyCamera(runtime: SceneRuntime | null, view: SampleSchoolCameraView) {
   if (!runtime) return;
   const { camera, controls } = runtime;
   runtime.cameraView = view;
-  if (view === "aerial") {
+  if (runtime.bongsun) {
+    const distance = frontageCameraDistance(camera.aspect);
+    const angle = view === "front-left" ? -Math.PI / 8 : view === "front-right" ? Math.PI / 8 : 0;
+    controls.target.set(0, 1.35, -3.7);
+    camera.position.set(Math.sin(angle) * distance, 1.35 + distance * 0.105, -3.7 + Math.cos(angle) * distance);
+    controls.minAzimuthAngle = -Math.PI / 4;
+    controls.maxAzimuthAngle = Math.PI / 4;
+    controls.minPolarAngle = Math.PI * 0.33;
+    controls.maxPolarAngle = Math.PI * 0.485;
+    controls.minDistance = Math.min(9, distance / 1.8);
+    controls.maxDistance = distance * 1.65;
+  } else if (view === "aerial") {
     camera.position.set(0, 32, 0.001);
     controls.target.set(0, 0, 0);
     controls.minDistance = 20;
@@ -276,6 +302,33 @@ function buildSampleCampus(runtime: SceneRuntime, schoolName: string, schoolLogo
   ground.name = "empty-school-placement-ground";
   campus.add(ground);
 
+  if (runtime.bongsun) {
+    const school = new THREE.Group();
+    school.add(createBongsunBuilding(THREE), createBongsunSurroundings(THREE));
+    school.scale.setScalar(0.37);
+    school.position.z = -5.5;
+    campus.add(school);
+
+    // The court in the source photo is pale sand. A distinct soil bed marks the editable frontage.
+    ground.material.color.set(0xe1c593);
+    const field = new THREE.Mesh(
+      new THREE.PlaneGeometry(180, 165),
+      new THREE.MeshStandardMaterial({ color: 0xcbb793, roughness: 1 }),
+    );
+    field.rotation.x = -Math.PI / 2;
+    field.position.y = -0.018;
+    field.receiveShadow = true;
+    campus.add(field);
+    const bed = BONGSUN_FRONT_GARDEN;
+    const bedMesh = new THREE.Mesh(new THREE.PlaneGeometry(bed.width, bed.depth),
+      new THREE.MeshStandardMaterial({ map: soilTexture, color: 0xc0a07f, roughness: 1 }));
+    bedMesh.rotation.x = -Math.PI / 2;
+    bedMesh.position.set(0, 0.002, bed.centerZ);
+    bedMesh.receiveShadow = true;
+    campus.add(bedMesh);
+    return ground;
+  }
+
   addSchoolBuilding(runtime, campus, { x: 0, z: -5, width: 18, depth: 3.2, height: 5.4, floors: 3 });
   addSchoolBuilding(runtime, campus, { x: -8, z: -0.05, width: 3, depth: 7.2, height: 5.4, floors: 3 });
   addSchoolBuilding(runtime, campus, { x: 8, z: 0.4, width: 5.2, depth: 4.2, height: 4, floors: 2, concrete: true });
@@ -328,7 +381,7 @@ function createSurfaceStrokeMesh(runtime: SceneRuntime, stroke: SchoolSurfaceStr
   const material = runtime.surfaceMaterials.get(stroke.materialId);
   if (!material) return null;
   const points = stroke.points
-    .filter((point) => isSampleSchoolSurfacePlacementAllowed(point, stroke.widthMeters))
+    .filter((point) => isSampleSchoolSurfacePlacementAllowed(point, stroke.widthMeters, runtime.bongsun))
     .map((point) => new THREE.Vector3(
       (point.x - 0.5) * SAMPLE_SCHOOL_WIDTH_METERS,
       0.018 + Math.min(0.012, stroke.zIndex * 0.00018),
@@ -377,7 +430,7 @@ function createSurfaceStrokeMesh(runtime: SceneRuntime, stroke: SchoolSurfaceStr
 }
 
 function rebuildSurfaces(runtime: SceneRuntime, strokes: SchoolSurfaceStroke[]) {
-  clearGroup(runtime.surfaceRoot, false);
+  clearGroup(runtime.surfaceRoot, true);
   for (const stroke of [...strokes].sort((a, b) => a.zIndex - b.zIndex)) {
     const mesh = createSurfaceStrokeMesh(runtime, stroke);
     if (mesh) runtime.surfaceRoot.add(mesh);
@@ -455,6 +508,7 @@ function normalizeModel(runtime: SceneRuntime, template: Object3D, materialId: s
   model.traverse((child) => {
     const mesh = child as Mesh;
     if (mesh.isMesh) {
+      mesh.userData.templateMesh = true;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
     }
@@ -635,7 +689,7 @@ function addLawnSurface(
         toWorld(x1, z1),
         toWorld(x0, z1),
       ];
-      if (!corners.every((point) => isSampleSchoolSurfacePointOpen(point, 0.015))) continue;
+      if (!corners.every((point) => isSampleSchoolSurfacePointOpen(point, 0.015, runtime.bongsun))) continue;
 
       pushVertex(corners[0]);
       pushVertex(corners[3]);
@@ -1053,7 +1107,7 @@ function createLandscapeModel(
 
 function rebuildLandscape(runtime: SceneRuntime, objects: LandscapeObject[], selectedId: string | null) {
   const { THREE, landscapeRoot } = runtime;
-  clearGroup(landscapeRoot, false);
+  clearGroup(landscapeRoot);
   for (const object of objects) {
     const material = findLandscapeMaterial(object.materialId);
     if (!material) continue;
@@ -1108,6 +1162,11 @@ export function SampleSchool3DScene({
   activeMaterialId,
   activeSurfaceId,
   cameraView,
+  cameraResetKey = 0,
+  readOnly = false,
+  bongsun = isBongsunSchool(schoolName),
+  onUnavailable,
+  onReady,
   onPlace,
   onMove,
   onSelect,
@@ -1121,6 +1180,11 @@ export function SampleSchool3DScene({
   activeMaterialId: string | null;
   activeSurfaceId: SchoolSurfaceMaterialId | null;
   cameraView: SampleSchoolCameraView;
+  cameraResetKey?: number;
+  readOnly?: boolean;
+  bongsun?: boolean;
+  onUnavailable?: () => void;
+  onReady?: () => void;
   onPlace: (materialId: string, point: Point2D) => void;
   onMove: (objectId: string, point: Point2D) => void;
   onSelect: (objectId: string | null) => void;
@@ -1129,15 +1193,17 @@ export function SampleSchool3DScene({
   const hostRef = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<SceneRuntime | null>(null);
   const callbacksRef = useRef<SceneCallbacks>({ onPlace, onMove, onSelect, onPaintSurface });
+  const lifecycleRef = useRef({ onReady, onUnavailable });
   const activeMaterialRef = useRef(activeMaterialId);
   const activeSurfaceRef = useRef(activeSurfaceId);
   const objectsRef = useRef(objects);
   const strokesRef = useRef(surfaceStrokes);
   const selectedIdRef = useRef(selectedId);
   const initialViewRef = useRef(cameraView);
-  const [failed, setFailed] = useState(false);
+  const [sceneState, setSceneState] = useState<"loading" | "ready" | "failed">("loading");
 
   useEffect(() => { callbacksRef.current = { onPlace, onMove, onSelect, onPaintSurface }; }, [onMove, onPaintSurface, onPlace, onSelect]);
+  useEffect(() => { lifecycleRef.current = { onReady, onUnavailable }; }, [onReady, onUnavailable]);
   useEffect(() => { activeMaterialRef.current = activeMaterialId; }, [activeMaterialId]);
   useEffect(() => { activeSurfaceRef.current = activeSurfaceId; }, [activeSurfaceId]);
   useEffect(() => { objectsRef.current = objects; }, [objects]);
@@ -1148,8 +1214,8 @@ export function SampleSchool3DScene({
     const host = hostRef.current;
     if (!host) return;
     let disposed = false;
-    let cleanup = () => undefined;
-    setFailed(false);
+    let cleanup: () => void = () => undefined;
+    setSceneState("loading");
 
     void (async () => {
       try {
@@ -1161,24 +1227,30 @@ export function SampleSchool3DScene({
         if (disposed) return;
 
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xe8efec);
+        scene.background = new THREE.Color(bongsun ? 0xe4f0f5 : 0xe8efec);
+        if (bongsun) scene.fog = new THREE.Fog(0xe6edf0, 35, 96);
         const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 120);
         const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFShadowMap;
-        renderer.domElement.setAttribute("aria-label", "빈 학교 부지에 바닥과 실제 조경 재료를 배치하는 3D 공간");
+        renderer.domElement.setAttribute("aria-label", bongsun ? "봉선중학교 본관 앞 조경 공간" : "빈 학교 부지에 바닥과 실제 조경 재료를 배치하는 3D 공간");
         renderer.domElement.style.touchAction = "none";
         host.appendChild(renderer.domElement);
 
         const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
+        controls.enableDamping = !bongsun;
         controls.dampingFactor = 0.08;
         controls.enablePan = false;
+        cleanup = () => {
+          controls.dispose();
+          renderer.dispose();
+          renderer.domElement.remove();
+        };
 
-        scene.add(new THREE.HemisphereLight(0xffffff, 0x667165, 1.65));
-        const sun = new THREE.DirectionalLight(0xfff4dc, 2.35);
+        scene.add(new THREE.HemisphereLight(bongsun ? 0xf0f7ff : 0xffffff, bongsun ? 0x968779 : 0x667165, bongsun ? 1.75 : 1.65));
+        const sun = new THREE.DirectionalLight(0xfff4dc, bongsun ? 1.8 : 2.35);
         sun.position.set(-12, 24, 13);
         sun.castShadow = true;
         sun.shadow.mapSize.set(2048, 2048);
@@ -1192,6 +1264,7 @@ export function SampleSchool3DScene({
         const landscapeRoot = new THREE.Group();
         scene.add(surfaceRoot, landscapeRoot);
         const runtime: SceneRuntime = {
+          bongsun,
           THREE,
           scene,
           camera,
@@ -1212,10 +1285,14 @@ export function SampleSchool3DScene({
           cameraView: initialViewRef.current,
         };
         const textureLoader = new THREE.TextureLoader();
+        const materials = readOnly
+          ? LANDSCAPE_MATERIALS.filter((material) => material.pickerGroup === "flowers"
+            || objectsRef.current.some((object) => object.materialId === material.id))
+          : LANDSCAPE_MATERIALS;
         const textureUrls = [...new Set([
-          ...CAMPUS_TEXTURE_URLS,
+          ...(bongsun ? [CAMPUS_TEXTURE_URLS[0]] : CAMPUS_TEXTURE_URLS),
           ...SAMPLE_SCHOOL_SURFACE_MATERIALS.map((material) => material.textureUrl),
-          ...LANDSCAPE_MATERIALS.flatMap((material) => [material.planAssetUrl, material.sideAssetUrl]).filter((url): url is string => Boolean(url)),
+          ...materials.flatMap((material) => [material.planAssetUrl, material.sideAssetUrl]).filter((url): url is string => Boolean(url)),
         ])];
         await Promise.all(textureUrls.map(async (url) => {
           try {
@@ -1229,7 +1306,7 @@ export function SampleSchool3DScene({
         }));
 
         const gltfLoader = new GLTFLoader();
-        const modelUrls = [...new Set(LANDSCAPE_MATERIALS.map((material) => material.modelAssetUrl).filter((url): url is string => Boolean(url)))];
+        const modelUrls = [...new Set(materials.map((material) => material.modelAssetUrl).filter((url): url is string => Boolean(url)))];
         await Promise.all(modelUrls.map(async (url) => {
           try {
             const gltf = await gltfLoader.loadAsync(url);
@@ -1248,7 +1325,7 @@ export function SampleSchool3DScene({
         runtime.pathSurfaceTexture = createPavingTexture(runtime, "path");
         runtime.paverSurfaceTexture = createPavingTexture(runtime, "paver");
 
-        const schoolLogo = await loadSchoolLogoImage(schoolLogoDataUrl);
+        const schoolLogo = bongsun ? null : await loadSchoolLogoImage(schoolLogoDataUrl);
         if (disposed) {
           for (const texture of runtime.textures.values()) texture.dispose();
           renderer.dispose();
@@ -1259,10 +1336,17 @@ export function SampleSchool3DScene({
         runtimeRef.current = runtime;
         rebuildSurfaces(runtime, strokesRef.current);
         rebuildLandscape(runtime, objectsRef.current, selectedIdRef.current);
-        applyCamera(runtime, initialViewRef.current);
-
+        let editingPointer: number | null = null;
         let draggingId: string | null = null;
         let paintingStrokeId: string | null = null;
+        let pendingPlacement: { pointer: number; x: number; y: number; material: string } | null = null;
+        const beginEditing = (event: PointerEvent) => {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          editingPointer = event.pointerId;
+          renderer.domElement.setPointerCapture(event.pointerId);
+          controls.enabled = false;
+        };
         const selectObjectAtPointer = (event: PointerEvent): string | null => {
           if (!updatePointer(runtime, event)) return null;
           const hit = runtime.raycaster.intersectObject(runtime.landscapeRoot, true)
@@ -1270,45 +1354,50 @@ export function SampleSchool3DScene({
           return hit ? getLandscapeObjectId(hit.object) : null;
         };
         const handlePointerDown = (event: PointerEvent) => {
+          if (readOnly || event.button !== 0) return;
+          if (!event.isPrimary) {
+            pendingPlacement = null;
+            if (editingPointer !== null) event.stopImmediatePropagation();
+            return;
+          }
           const surfaceId = activeSurfaceRef.current;
           if (surfaceId) {
             const point = groundPoint(runtime, event);
             const surface = SAMPLE_SCHOOL_SURFACE_MATERIALS.find((candidate) => candidate.id === surfaceId);
-            if (point && surface && isSampleSchoolSurfacePlacementAllowed(point, surface.widthMeters)) {
-              event.preventDefault();
+            if (point && surface && isSampleSchoolSurfacePlacementAllowed(point, surface.widthMeters, runtime.bongsun)) {
+              beginEditing(event);
               paintingStrokeId = `surface-stroke-${crypto.randomUUID()}`;
-              controls.enabled = false;
               callbacksRef.current.onPaintSurface(paintingStrokeId, surfaceId, point, true);
-              renderer.domElement.setPointerCapture(event.pointerId);
             }
             return;
           }
 
           const objectId = selectObjectAtPointer(event);
           if (objectId) {
-            event.preventDefault();
+            beginEditing(event);
             draggingId = objectId;
-            controls.enabled = false;
             callbacksRef.current.onSelect(objectId);
-            renderer.domElement.setPointerCapture(event.pointerId);
             return;
           }
           const materialId = activeMaterialRef.current;
           if (materialId) {
-            const point = groundPoint(runtime, event);
-            if (point) callbacksRef.current.onPlace(materialId, point);
-            controls.enabled = false;
-            window.requestAnimationFrame(() => { controls.enabled = true; });
+            // A tap plants. A drag or pinch belongs to OrbitControls.
+            pendingPlacement = { pointer: event.pointerId, x: event.clientX, y: event.clientY, material: materialId };
           } else {
             callbacksRef.current.onSelect(null);
           }
         };
         const handlePointerMove = (event: PointerEvent) => {
+          if (readOnly) return;
+          if (pendingPlacement && Math.hypot(event.clientX - pendingPlacement.x, event.clientY - pendingPlacement.y) > 6) {
+            pendingPlacement = null;
+          }
+          if (editingPointer !== null && event.pointerId !== editingPointer) return;
           if (paintingStrokeId && activeSurfaceRef.current) {
             event.preventDefault();
             const point = groundPoint(runtime, event);
             const surface = SAMPLE_SCHOOL_SURFACE_MATERIALS.find((candidate) => candidate.id === activeSurfaceRef.current);
-            if (point && surface && isSampleSchoolSurfacePlacementAllowed(point, surface.widthMeters)) {
+            if (point && surface && isSampleSchoolSurfacePlacementAllowed(point, surface.widthMeters, runtime.bongsun)) {
               callbacksRef.current.onPaintSurface(paintingStrokeId, activeSurfaceRef.current, point, false);
             }
             renderer.domElement.style.cursor = "crosshair";
@@ -1325,7 +1414,17 @@ export function SampleSchool3DScene({
             ? "grab"
             : activeSurfaceRef.current || activeMaterialRef.current ? "crosshair" : "default";
         };
-        const stopPointerAction = () => {
+        const stopPointerAction = (event: PointerEvent) => {
+          if (readOnly) return;
+          if (pendingPlacement?.pointer === event.pointerId) {
+            if (event.type === "pointerup") {
+              const point = groundPoint(runtime, event);
+              if (point) callbacksRef.current.onPlace(pendingPlacement.material, point);
+            }
+            pendingPlacement = null;
+          }
+          if (editingPointer !== event.pointerId) return;
+          editingPointer = null;
           draggingId = null;
           paintingStrokeId = null;
           controls.enabled = true;
@@ -1337,27 +1436,38 @@ export function SampleSchool3DScene({
         };
         const handleDrop = (event: DragEvent) => {
           event.preventDefault();
+          if (readOnly) return;
           const materialId = event.dataTransfer?.getData("text/gardening-material");
           const point = groundPoint(runtime, event);
           if (materialId && point) callbacksRef.current.onPlace(materialId, point);
         };
-        renderer.domElement.addEventListener("pointerdown", handlePointerDown);
+        renderer.domElement.addEventListener("pointerdown", handlePointerDown, true);
         renderer.domElement.addEventListener("pointermove", handlePointerMove);
         renderer.domElement.addEventListener("pointerup", stopPointerAction);
         renderer.domElement.addEventListener("pointercancel", stopPointerAction);
         renderer.domElement.addEventListener("dragover", handleDragOver);
         renderer.domElement.addEventListener("drop", handleDrop);
 
+        let sized = false;
         const resize = () => {
           const width = Math.max(1, host.clientWidth);
           const height = Math.max(1, host.clientHeight);
           renderer.setSize(width, height, false);
+          const previousFit = frontageCameraDistance(camera.aspect);
           camera.aspect = width / height;
           camera.updateProjectionMatrix();
+          if (sized && bongsun) {
+            const newFit = frontageCameraDistance(camera.aspect);
+            camera.position.sub(controls.target).multiplyScalar(newFit / previousFit).add(controls.target);
+            controls.maxDistance = newFit * 1.65;
+            controls.update();
+          }
+          sized = true;
         };
         const resizeObserver = new ResizeObserver(resize);
         resizeObserver.observe(host);
         resize();
+        applyCamera(runtime, initialViewRef.current);
 
         let frame = 0;
         const render = () => {
@@ -1366,18 +1476,23 @@ export function SampleSchool3DScene({
           frame = window.requestAnimationFrame(render);
         };
         render();
+        setSceneState("ready");
+        lifecycleRef.current.onReady?.();
 
         cleanup = () => {
           window.cancelAnimationFrame(frame);
           resizeObserver.disconnect();
-          renderer.domElement.removeEventListener("pointerdown", handlePointerDown);
+          renderer.domElement.removeEventListener("pointerdown", handlePointerDown, true);
           renderer.domElement.removeEventListener("pointermove", handlePointerMove);
           renderer.domElement.removeEventListener("pointerup", stopPointerAction);
           renderer.domElement.removeEventListener("pointercancel", stopPointerAction);
           renderer.domElement.removeEventListener("dragover", handleDragOver);
           renderer.domElement.removeEventListener("drop", handleDrop);
           controls.dispose();
+          clearGroup(runtime.surfaceRoot, true);
+          for (const material of runtime.surfaceMaterials.values()) material.dispose();
           disposeObject(scene);
+          for (const template of runtime.modelTemplates.values()) disposeObject(template);
           for (const texture of runtime.textures.values()) texture.dispose();
           for (const texture of runtime.generatedTextures) texture.dispose();
           renderer.dispose();
@@ -1385,7 +1500,11 @@ export function SampleSchool3DScene({
           runtimeRef.current = null;
         };
       } catch {
-        if (!disposed) setFailed(true);
+        if (!disposed) {
+          cleanup();
+          setSceneState("failed");
+          lifecycleRef.current.onUnavailable?.();
+        }
       }
     })();
 
@@ -1393,7 +1512,7 @@ export function SampleSchool3DScene({
       disposed = true;
       cleanup();
     };
-  }, [schoolLogoDataUrl, schoolName]);
+  }, [bongsun, readOnly, schoolLogoDataUrl, schoolName]);
 
   useEffect(() => {
     if (runtimeRef.current) rebuildLandscape(runtimeRef.current, objects, selectedId);
@@ -1406,11 +1525,21 @@ export function SampleSchool3DScene({
   useEffect(() => {
     initialViewRef.current = cameraView;
     applyCamera(runtimeRef.current, cameraView);
-  }, [cameraView]);
+  }, [cameraResetKey, cameraView]);
 
   return (
-    <div ref={hostRef} className="sample-school-scene" role="application" aria-label="빈 학교 부지에 바닥과 조경 재료를 만드는 3D 조경 설계 공간">
-      {failed ? <p className="sample-school-scene__error">이 기기에서는 3D 학교를 표시하지 못했습니다.</p> : null}
+    <div ref={hostRef} className="sample-school-scene" role="application" aria-label={bongsun ? "봉선중학교 본관 앞 3D 조경 공간" : "빈 학교 부지에 바닥과 조경 재료를 만드는 3D 조경 설계 공간"}>
+      {sceneState === "loading" && bongsun && !readOnly ? (
+        <p className="sample-school-scene__error" role="status">본관과 조경 재료를 불러오는 중…</p>
+      ) : null}
+      {sceneState === "failed" && bongsun && !readOnly ? (
+        <BongsunCompatibleEditor
+          objects={objects} surfaceStrokes={surfaceStrokes} selectedId={selectedId}
+          activeMaterialId={activeMaterialId} activeSurfaceId={activeSurfaceId}
+          cameraView={cameraView} cameraResetKey={cameraResetKey}
+          onPlace={onPlace} onMove={onMove} onSelect={onSelect} onPaintSurface={onPaintSurface}
+        />
+      ) : sceneState === "failed" ? <p className="sample-school-scene__error">이 기기에서는 3D 학교를 표시하지 못했습니다.</p> : null}
     </div>
   );
 }

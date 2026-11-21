@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
+import type { StudentLandscapeDesign } from "@/domain/models";
 import {
+  BONGSUN_SCENE_VERSION,
+  getSchoolSceneVersion,
+  isBongsunSchool,
+  SAMPLE_SCHOOL_SCENE_VERSION,
   getSampleSchoolPlacementClearance,
   isSampleSchoolPlacementAllowed,
   isSampleSchoolSurfacePlacementAllowed,
@@ -46,5 +51,45 @@ describe("sample school coordinates", () => {
     expect(treeClearance).toBe(0.5);
     expect(isSampleSchoolPlacementAllowed(rearGround, treeClearance)).toBe(true);
     expect(isSampleSchoolPlacementAllowed(nearBuildingWall, lawnClearance)).toBe(true);
+  });
+});
+
+describe("Bongseon main building frontage", () => {
+  it("matches only the requested middle school, including the short or regional name", () => {
+    for (const name of ["봉선중", "봉선중학교", "광주광역시 남구 봉선중학교", "광주 봉선중"]) {
+      expect(isBongsunSchool(name)).toBe(true);
+    }
+    for (const name of ["봉선초등학교", "광주봉선여자중학교", "다른봉선중학교"]) {
+      expect(isBongsunSchool(name)).toBe(false);
+    }
+  });
+
+  it("keeps an existing design in its original setting when the teacher selects the school", () => {
+    const saved: StudentLandscapeDesign = {
+      id: "design", studentSessionId: "session", schoolProjectId: "school",
+      sceneVersion: SAMPLE_SCHOOL_SCENE_VERSION, objects: [], intentionKeyword: null,
+      intentionReason: null, thumbnailUrl: null, submittedAt: null,
+    };
+    expect(getSchoolSceneVersion("봉선중학교", saved)).toBe(BONGSUN_SCENE_VERSION);
+    const stroke = { id: "grass", materialId: "lawn-surface" as const, widthMeters: 3, points: [{ x: 0.5, y: 0.1 }], zIndex: 1 };
+    expect(getSchoolSceneVersion("봉선중학교", { ...saved, surfaceStrokes: [stroke] })).toBe(SAMPLE_SCHOOL_SCENE_VERSION);
+    expect(getSchoolSceneVersion("봉선중학교", {
+      ...saved, sceneVersion: "sample-middle-school-v1", surfaceStrokes: [stroke],
+    })).toBe("sample-middle-school-v1");
+    expect(getSchoolSceneVersion("다른 학교", { ...saved, sceneVersion: BONGSUN_SCENE_VERSION })).toBe(BONGSUN_SCENE_VERSION);
+    expect(getSchoolSceneVersion("다른 학교", null)).toBe(SAMPLE_SCHOOL_SCENE_VERSION);
+  });
+
+  it("permits the whole width of a stroke only where the editable bed is visible", () => {
+    const front = sampleSchoolToNormalized({ x: 7.9, z: 0.5 });
+    expect(isSampleSchoolPlacementAllowed(front, 0.4, true)).toBe(true);
+    expect(isSampleSchoolSurfacePlacementAllowed(front, 1.8, true)).toBe(true);
+    // The same location is under a side building of the original generic school.
+    expect(isSampleSchoolSurfacePlacementAllowed(front, 1.8)).toBe(false);
+    for (const point of [{ x: 0, z: -2.3 }, { x: 12.2, z: 3 }, { x: 0, z: 8.2 }]) {
+      expect(isSampleSchoolSurfacePointOpen(point, 0, true)).toBe(false);
+      expect(isSampleSchoolPlacementAllowed(sampleSchoolToNormalized(point), 0.2, true)).toBe(false);
+    }
+    expect(isSampleSchoolSurfacePlacementAllowed(sampleSchoolToNormalized({ x: 0, z: -1.9 }), 1.8, true)).toBe(false);
   });
 });
