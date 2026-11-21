@@ -158,8 +158,8 @@ export function CampusBuilderPhoto({ value, candidates, loading, onChange, aspec
       </div>}
       <div className={styles.actions}>
         <input id={pickerId} className={styles.file} type="file" accept={SUPPORTED_TYPES.join(",")}
-          aria-label="본관 정면 사진 올리기" onChange={upload} />
-        <label htmlFor={pickerId} className={styles.button}>{value ? "다른 사진 올리기" : "정면 사진 올리기"}</label>
+          aria-label="내 본관 정면 사진 올리기 (선택)" onChange={upload} />
+        <label htmlFor={pickerId} className={styles.button}>{value ? "다른 사진 올리기" : "내 사진 올리기 (선택)"}</label>
         {value && <button type="button" className={styles.plain} onClick={clearPhoto}>사진 지우기</button>}
       </div>
       {reading && <p role="status">정면 사진을 준비하고 있어요…</p>}

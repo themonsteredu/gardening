@@ -188,7 +188,7 @@ export function CampusBuilder() {
       if (sourceUrl) setDraft(current => ({ ...current, sourceUrl }));
       if (!info.images.length) setPhotoNote("홈페이지에서 정면 사진을 찾지 못했어요. 가지고 있는 사진을 올리거나 층수와 색으로 시작하세요.");
     } catch {
-      if (seq === photoSeq.current) setPhotoNote("홈페이지 사진을 가져오지 못했어요. 직접 사진을 올릴 수 있어요.");
+      if (seq === photoSeq.current) setPhotoNote("홈페이지 사진을 가져오지 못했어요. 층수와 색으로 모형을 만들거나 직접 사진을 올려 주세요.");
     } finally {
       if (seq === photoSeq.current) setLoadingPhotos(false);
     }
@@ -312,6 +312,7 @@ export function CampusBuilder() {
               </label>
               <hr />
               <h2>본관 정면</h2>
+              {!homepage && !loadingPhotos && !draft.frontPhoto && !photoNote && <p className={styles.help}>학교를 검색해 선택하면 공식 홈페이지에서 사진을 찾아요. 사진 없이 층수와 색만으로도 모형을 만들 수 있어요.</p>}
               {homepage && <a className={styles.source} href={homepage} target="_blank" rel="noreferrer">학교 공식 홈페이지 ↗</a>}
               <fieldset className={styles.resetFieldset} disabled={busy}>
                 <CampusBuilderPhoto key={photoKey} value={draft.frontPhoto} candidates={candidates} loading={loadingPhotos} onProcessingChange={setProcessingPhoto}
@@ -364,7 +365,10 @@ export function CampusBuilder() {
                 </div>
               </form>
               {shared && <div className={styles.share}><h3>{shared.project.className} 학생 입장</h3><ClassJoinShare code={shared.project.classCode} />
-                <Link className={styles.source} href="/teacher">수업 설계실로 돌아가기 →</Link>
+                <div className={styles.classLinks}>
+                  <Link className={styles.secondary} href="/teacher/lesson">조경전문가 수업 PPT</Link>
+                  <Link className={styles.source} href="/teacher">수업 설계실로 돌아가기 →</Link>
+                </div>
               </div>}
             </section>}
             {notice && <p className={styles.status} role="status">{notice}</p>}

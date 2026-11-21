@@ -136,7 +136,10 @@ export function TeacherDashboard() {
             <h1>수업 설계실</h1>
             <p>학교 공간과 실제 재료를 준비하고 학생의 설계 과정을 확인합니다.</p>
           </div>
-          <Link className="button button--primary" href="/teacher/campuses">학교 모형 만들기 · 수업 열기</Link>
+          <div className="teacher-heading-actions">
+            <Link className="button button--quiet" href="/teacher/lesson">조경전문가 수업 PPT</Link>
+            <Link className="button button--primary" href="/teacher/campuses">학교 모형 만들기 · 수업 열기</Link>
+          </div>
         </div>
         <SchoolClassPicker project={project} />
 
