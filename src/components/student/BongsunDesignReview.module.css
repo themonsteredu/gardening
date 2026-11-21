@@ -1,6 +1,4 @@
 .review { color: #274839; background: #f5f7f3; }
-.actions { display: flex; flex-wrap: wrap; gap: .3rem; padding: .45rem .65rem; }
-.actions button { min-height: 42px; padding: .4rem .9rem; border: 1px solid #b7c9bb; border-radius: 1rem; color: #234c37; background: #fff; font: inherit; font-size: .88rem; cursor: pointer; }
-.actions button[aria-pressed="true"] { color: white; border-color: #28583e; background: #28583e; }
-.scene { aspect-ratio: 1100 / 520; overflow: hidden; background: #dce7e5; }
-.review small { display: block; padding: .4rem .85rem; font-size: .8rem; }
+.scene { position: relative; aspect-ratio: 1100 / 520; overflow: hidden; background: #dce7e5; }
+.caption { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .65rem; padding: .5rem .85rem; font-size: .83rem; }
+.caption span:last-child { margin-inline-start: auto; }

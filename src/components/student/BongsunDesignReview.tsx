@@ -6,35 +6,28 @@ import type { LandscapeObject, SchoolGardenSide, SchoolSurfaceStroke } from "@/d
 import { isOnSchoolGardenSide } from "@/lib/sample-school";
 import styles from "./BongsunDesignReview.module.css";
 
-const GardenSnapshot = dynamic(() => import("./BongsunCompatibleEditor").then(module => module.BongsunGardenSnapshot));
-
-const sides = [
-  { id: "front", label: "본관 앞" },
-  { id: "rear", label: "수업용 뒤뜰" },
-] as const;
+const OrbitViewer = dynamic(() => import("./BongsunCompatibleEditor").then(module => module.BongsunOrbitViewer));
 
 export function BongsunDesignReview({ objects, surfaceStrokes = [] }: {
   objects: LandscapeObject[];
   surfaceStrokes?: SchoolSurfaceStroke[];
 }) {
-  const [side, setSide] = useState<SchoolGardenSide>(() => {
-    const items = [...objects, ...surfaceStrokes];
-    return items.length && items.every(item => isOnSchoolGardenSide(item, "rear")) ? "rear" : "front";
-  });
-  const plants = objects.filter(item => isOnSchoolGardenSide(item, side));
-  const strokes = surfaceStrokes.filter(item => isOnSchoolGardenSide(item, side));
+  const items = [...objects, ...surfaceStrokes];
+  const initialSide = items.length > 0 && items.every(item => isOnSchoolGardenSide(item, "rear")) ? "rear" : "front";
+  const [side, setSide] = useState<SchoolGardenSide>(initialSide);
+  const objectCount = objects.filter(item => isOnSchoolGardenSide(item, side)).length;
+  const strokeCount = surfaceStrokes.filter(item => isOnSchoolGardenSide(item, side)).length;
 
   return (
     <div className={styles.review}>
-      <div className={styles.actions} role="group" aria-label="작품에서 볼 공간">
-        {sides.map(({ id, label }) => (
-          <button type="button" key={id} aria-pressed={side === id} onClick={() => setSide(id)}>{label}</button>
-        ))}
-      </div>
       <div className={styles.scene}>
-        <GardenSnapshot gardenSide={side} objects={plants} surfaceStrokes={strokes} />
+        <OrbitViewer objects={objects} surfaceStrokes={surfaceStrokes} initialSide={initialSide} onGardenSideChange={setSide} />
       </div>
-      <small>조경물 {plants.length}개 · 바닥 칠하기 {strokes.length}개</small>
+      <div className={styles.caption}>
+        <strong>{side === "front" ? "본관 앞" : "수업용 뒤뜰"}</strong>
+        <span>조경물 {objectCount}개 · 바닥 칠하기 {strokeCount}개</span>
+        <span>좌우로 끌어 둘러보기</span>
+      </div>
     </div>
   );
 }

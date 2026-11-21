@@ -1,22 +1,9 @@
 import type { Matrix4 } from "three";
-import { createBongsunBuilding, createBongsunSurroundings } from "./bongsun-building";
 
 type Three = typeof import("three");
 
-/** A teaching model of the unphotographed garden side. Returned in the editor's world coordinates. */
-export function createBongsunRear(THREE: Three) {
-  const site = new THREE.Group();
-  site.name = "수업용 뒤뜰";
-
-  const school = new THREE.Group();
-  school.scale.setScalar(0.37);
-  school.position.z = -7.7;
-  site.add(school);
-
-  const originalBuilding = createBongsunBuilding(THREE);
-  originalBuilding.rotation.y = Math.PI;
-  school.add(originalBuilding);
-
+/** Classroom wing, windows and seating on the unphotographed side, in building-local units. */
+export function createBongsunRearDetails(THREE: Three) {
   const parts: { matrix: Matrix4; color: number }[] = [];
   const transform = new THREE.Object3D();
   function box(color: number, x: number, y: number, z: number, width: number, height: number, depth: number) {
@@ -94,6 +81,20 @@ export function createBongsunRear(THREE: Three) {
     box(0x8e7258, x, 0.98, 11.21, 3.4, 0.29, 0.13);
   }
 
+  // Tall classroom wing end elevations are exposed as the camera rounds either corner.
+  for (const side of [-1, 1]) {
+    const wallX = wingX + side * 14.9;
+    for (let floor = 0; floor < 4; floor++) {
+      const y = 1.88 + floor * 3.03;
+      for (const z of [5.12, 8.44]) {
+        box(frame, wallX + side * 0.07, y, z, 0.13, 1.62, 1.9);
+        box(0x859795, wallX + side * 0.15, y, z, 0.055, 1.47, 1.73);
+        box(frame, wallX + side * 0.19, y, z, 0.04, 1.47, 0.065);
+      }
+    }
+    box(stone, side * 32.61, 0.035, -3.95, 1.04, 0.07, 14.8);
+  }
+
   const details = new THREE.InstancedMesh(
     new THREE.BoxGeometry(),
     new THREE.MeshStandardMaterial({ roughness: 0.81, metalness: 0.05 }),
@@ -107,12 +108,7 @@ export function createBongsunRear(THREE: Three) {
   details.computeBoundingBox();
   details.computeBoundingSphere();
   details.castShadow = details.receiveShadow = true;
-  school.add(details);
-
-  // The skyline is a softened contextual backdrop, as on the front of the teaching model.
-  const surroundings = createBongsunSurroundings(THREE);
-  surroundings.scale.set(0.38, 0.37, 0.37);
-  surroundings.position.set(-0.9, 0, -7.3);
-  site.add(surroundings);
-  return site;
+  details.rotation.y = Math.PI;
+  details.name = "수업용 뒤뜰 외벽과 통로";
+  return details;
 }

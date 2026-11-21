@@ -1,20 +1,29 @@
 "use client";
 
-import { useId, useMemo, useRef, useState, type ComponentProps, type PointerEvent } from "react";
-import { PerspectiveCamera, Plane, Raycaster, Vector2, Vector3 } from "three";
-import type { SampleSchool3DScene } from "./SampleSchool3DScene";
+import { useEffect, useId, useMemo, useRef, useState, type ComponentProps, type PointerEvent } from "react";
+import { Box3, PerspectiveCamera, Plane, Ray, Raycaster, Vector2, Vector3 } from "three";
+import type { SampleSchool3DScene, SampleSchoolCameraView } from "./SampleSchool3DScene";
 import { findLandscapeMaterial } from "@/data/landscape-materials";
 import type { LandscapeObject, Point2D, SchoolGardenSide, SchoolSurfaceStroke } from "@/domain/models";
 import {
-  findSampleSchoolSurfaceMaterial, isSampleSchoolSurfacePlacementAllowed,
+  findSampleSchoolSurfaceMaterial, isSampleSchoolSurfacePlacementAllowed, isSampleSchoolSurfacePointOpen,
   normalizedToSampleSchool, sampleSchoolToNormalized, SAMPLE_SCHOOL_SURFACE_MATERIALS,
 } from "@/lib/sample-school";
-import { BONGSUN_VIEWS as VIEWS, getBongsunFrameUrl } from "@/lib/bongsun-views";
+import {
+  BONGSUN_BUILDING_BOUNDS, BONGSUN_ORBIT_STEP, campusToLocalPoint, getOrbitCameraPose, getOrbitFrameAngle, getOrbitFrameUrl,
+  getOrbitGardenSide, getOrbitViewAngle, getOrbitViewLabel, localToCampusPoint, orbitDragAngle,
+} from "@/lib/bongsun-orbit";
 import styles from "./BongsunCompatibleEditor.module.css";
 
 type Props = Pick<ComponentProps<typeof SampleSchool3DScene>,
   "objects" | "surfaceStrokes" | "selectedId" | "activeMaterialId" | "activeSurfaceId" |
-  "cameraView" | "gardenSide" | "cameraResetKey" | "onPaintSurface" | "onPlace" | "onMove" | "onSelect">;
+  "cameraView" | "gardenSide" | "cameraResetKey" | "onGardenSideChange" | "onPaintSurface" | "onPlace" | "onMove" | "onSelect">;
+
+type ViewerProps = Pick<Props, "objects" | "surfaceStrokes" | "onGardenSideChange" | "cameraResetKey"> & {
+  cameraView?: SampleSchoolCameraView;
+  initialSide?: SchoolGardenSide;
+};
+type GroundPoint = { x: number; z: number };
 
 // The baked backgrounds and the WebGL scene share a camera in the same world coordinates.
 const WIDTH = 1100;
@@ -27,13 +36,23 @@ const MODEL_IMAGES: Record<string, string> = {
 };
 const INITIAL_ZOOM = { scale: 1, x: 0, y: 0 };
 
-function makeCamera(viewIndex: number) {
-  const aspect = WIDTH / HEIGHT;
-  const camera = new PerspectiveCamera(42, aspect, 0.1, 120);
-  const distance = Math.max(14, 13.2 / (Math.tan(42 * Math.PI / 360) * aspect));
-  const angle = VIEWS[viewIndex].angle * Math.PI / 180;
-  camera.position.set(Math.sin(angle) * distance, 1.35 + distance * 0.105, -3.7 + Math.cos(angle) * distance);
-  camera.lookAt(0, 1.35, -3.7);
+// Test line of sight against the brick block and the taller stone wing. This also
+// lets the two gardens appear beside each other in a view down the end wall.
+const SCHOOL_VOLUMES = BONGSUN_BUILDING_BOUNDS.map(({ min, max }) =>
+  new Box3(new Vector3(...min), new Vector3(...max)));
+function visibleFrom(camera: PerspectiveCamera, point: GroundPoint) {
+  const target = new Vector3(point.x, 0.025, point.z);
+  const length = camera.position.distanceTo(target);
+  const ray = new Ray(camera.position, target.sub(camera.position).normalize());
+  const hit = new Vector3();
+  return SCHOOL_VOLUMES.every(box => !ray.intersectBox(box, hit) || camera.position.distanceTo(hit) >= length);
+}
+
+function makeCamera(degrees: number) {
+  const camera = new PerspectiveCamera(42, WIDTH / HEIGHT, 0.1, 160);
+  const { position, target } = getOrbitCameraPose(degrees, camera.aspect);
+  camera.position.set(position.x, position.y, position.z);
+  camera.lookAt(target.x, target.y, target.z);
   camera.updateMatrixWorld();
   return camera;
 }
@@ -43,11 +62,17 @@ function project(camera: PerspectiveCamera, x: number, y: number, z: number): Po
   return { x: (p.x + 1) * WIDTH / 2, y: (1 - p.y) * HEIGHT / 2 };
 }
 
-function groundAt(camera: PerspectiveCamera, point: Point2D): Point2D | null {
+function groundAt(camera: PerspectiveCamera, point: Point2D) {
+  if (point.x < 0 || point.x > WIDTH || point.y < 0 || point.y > HEIGHT) return null;
   const ray = new Raycaster();
   ray.setFromCamera(new Vector2(2 * point.x / WIDTH - 1, 1 - 2 * point.y / HEIGHT), camera);
   const ground = ray.ray.intersectPlane(GROUND, new Vector3());
-  return ground && sampleSchoolToNormalized(ground);
+  if (!ground || !visibleFrom(camera, ground)) return null;
+  for (const side of ["front", "rear"] as const) {
+    const local = campusToLocalPoint(ground, side);
+    if (isSampleSchoolSurfacePointOpen(local, 0, true)) return { point: sampleSchoolToNormalized(local), side };
+  }
+  return null;
 }
 
 function svgPoint(node: SVGGraphicsElement, x: number, y: number) {
@@ -56,11 +81,7 @@ function svgPoint(node: SVGGraphicsElement, x: number, y: number) {
 }
 
 // Project both sides of the brush in world space so its width foreshortens with the soil.
-function strokePath(stroke: SchoolSurfaceStroke, camera: PerspectiveCamera) {
-  const points = stroke.points.filter(p => isSampleSchoolSurfacePlacementAllowed(p, stroke.widthMeters, true))
-    .map(normalizedToSampleSchool);
-  if (!points.length) return "";
-  const radius = stroke.widthMeters / 2;
+function strokeStrip(points: GroundPoint[], radius: number, camera: PerspectiveCamera) {
   const vertex = (x: number, z: number) => {
     const p = project(camera, x, 0.01, z);
     return p.x.toFixed(2) + " " + p.y.toFixed(2);
@@ -85,10 +106,29 @@ function strokePath(stroke: SchoolSurfaceStroke, camera: PerspectiveCamera) {
   return "M" + right.concat(left.reverse()).join("L") + "Z" + disc(points[0]) + disc(points[points.length - 1]);
 }
 
+function strokePath(stroke: SchoolSurfaceStroke, camera: PerspectiveCamera) {
+  const runs: GroundPoint[][] = [];
+  let run: GroundPoint[] = [];
+  const side = stroke.gardenSide ?? "front";
+  for (const p of stroke.points) {
+    const world = localToCampusPoint(normalizedToSampleSchool(p), side);
+    if (isSampleSchoolSurfacePlacementAllowed(p, stroke.widthMeters, true) && visibleFrom(camera, world)) {
+      run.push(world);
+    } else if (run.length) {
+      runs.push(run);
+      run = [];
+    }
+  }
+  if (run.length) runs.push(run);
+  return runs.map(points => strokeStrip(points, stroke.widthMeters / 2, camera)).join(" ");
+}
+
 function spriteFor(object: LandscapeObject, camera: PerspectiveCamera) {
   const material = findLandscapeMaterial(object.materialId);
   if (!material) return null;
-  const { x, z } = normalizedToSampleSchool(object);
+  const world = localToCampusPoint(normalizedToSampleSchool(object), object.gardenSide ?? "front");
+  if (!visibleFrom(camera, world)) return null;
+  const { x, z } = world;
   const anchor = project(camera, x, 0.015, z);
   const depth = -new Vector3(x, 0.015, z).applyMatrix4(camera.matrixWorldInverse).z;
   if (depth <= camera.near) return null;
@@ -101,24 +141,18 @@ function spriteFor(object: LandscapeObject, camera: PerspectiveCamera) {
 }
 
 type Gesture = {
-  id: number; start: Point2D; screenX: number; screenY: number; view: number;
-  item?: LandscapeObject; stroke?: string; moved?: boolean;
+  id: number; start: Point2D; screenX: number; screenY: number; angle: number;
+  item?: LandscapeObject; stroke?: { id: string; side: SchoolGardenSide }; moved?: boolean;
 };
-
-export function BongsunCompatibleEditor(props: Props) {
-  // Remount when a toolbar view is selected, including repeated clicks on the same view.
-  return <EditorView key={`${props.gardenSide}-${props.cameraView}-${props.cameraResetKey ?? 0}`} {...props} />;
-}
 
 type GardenLayersProps = Pick<Props, "objects" | "surfaceStrokes"> & {
   camera: PerspectiveCamera;
-  gardenSide: SchoolGardenSide;
-  view: number;
+  angle: number;
   selectedId?: Props["selectedId"];
   onSelect?: Props["onSelect"];
 };
 
-function GardenLayers({ objects, surfaceStrokes, camera, gardenSide, view, selectedId, onSelect }: GardenLayersProps) {
+function GardenLayers({ objects, surfaceStrokes, camera, angle, selectedId, onSelect }: GardenLayersProps) {
   const brushPrefix = useId() + "-brush-";
   const strokes = useMemo(() => [...surfaceStrokes].sort((a, b) => a.zIndex - b.zIndex)
     .map(stroke => ({ stroke, d: strokePath(stroke, camera) })), [surfaceStrokes, camera]);
@@ -131,8 +165,8 @@ function GardenLayers({ objects, surfaceStrokes, camera, gardenSide, view, selec
         <image href={s.textureUrl} width={64} height={22} preserveAspectRatio="none" />
       </pattern>)}
     </defs>
-    <image href={getBongsunFrameUrl(gardenSide, VIEWS[view].frame)} width={WIDTH} height={HEIGHT}
-      aria-label={`${gardenSide === "rear" ? "수업용 뒤뜰" : "본관"} ${VIEWS[view].angle === 0 ? "정면" : VIEWS[view].angle < 0 ? "왼쪽" : "오른쪽"}`} />
+    <image href={getOrbitFrameUrl(angle)} width={WIDTH} height={HEIGHT}
+      aria-label={getOrbitViewLabel(angle)} />
     {strokes.map(({ stroke, d }) => <path key={stroke.id} d={d} fill={`url(#${brushPrefix}${stroke.materialId})`} />)}
     {sprites.map(({ object, material, anchor, src, width, height }) => (
       <g key={object.id} data-object={onSelect ? object.id : undefined} className={onSelect ? styles.item : undefined}
@@ -151,35 +185,90 @@ function GardenLayers({ objects, surfaceStrokes, camera, gardenSide, view, selec
   </>;
 }
 
-export function BongsunGardenSnapshot({ gardenSide, objects, surfaceStrokes }: {
-  gardenSide: SchoolGardenSide;
-  objects: LandscapeObject[];
-  surfaceStrokes: SchoolSurfaceStroke[];
-}) {
-  const view = VIEWS.findIndex(v => v.angle === 0);
-  const camera = useMemo(() => makeCamera(view), [view]);
-  return (
-    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img"
-      aria-label={gardenSide === "rear" ? "봉선중학교 수업용 뒤뜰 설계" : "봉선중학교 본관 앞 설계"}
-      style={{ display: "block", width: "100%", height: "auto" }}>
-      <GardenLayers objects={objects} surfaceStrokes={surfaceStrokes} camera={camera} gardenSide={gardenSide} view={view} />
-    </svg>
-  );
+const pendingFrames = new Map<number, Promise<boolean>>();
+const loadedFrames = new Set<number>();
+
+// Multiple gallery cards and both adjacent frame requests can share one browser load.
+function loadFrame(degrees: number) {
+  const angle = getOrbitFrameAngle(degrees);
+  if (loadedFrames.has(angle)) return Promise.resolve(true);
+  const pending = pendingFrames.get(angle);
+  if (pending) return pending;
+  const image = new Image();
+  image.src = getOrbitFrameUrl(angle);
+  const promise = image.decode().then(() => {
+    loadedFrames.add(angle);
+    return true;
+  }, () => false).finally(() => pendingFrames.delete(angle));
+  pendingFrames.set(angle, promise);
+  return promise;
 }
 
-function EditorView({ objects, surfaceStrokes, selectedId, activeMaterialId, activeSurfaceId, cameraView, gardenSide = "front",
-  onPlace, onMove, onSelect, onPaintSurface }: Props) {
-  const [view, setView] = useState(() => {
-    const initial = VIEWS.findIndex(v => v.frame === cameraView);
-    return initial < 0 ? 5 : initial;
-  });
+export function BongsunCompatibleEditor(props: Props) {
+  return <OrbitCanvas key={`${props.cameraView}-${props.cameraResetKey ?? 0}`}
+    objects={props.objects} surfaceStrokes={props.surfaceStrokes} cameraView={props.cameraView}
+    onGardenSideChange={props.onGardenSideChange} editor={props} />;
+}
+
+export function BongsunOrbitViewer(props: ViewerProps) {
+  return <OrbitCanvas key={`${props.cameraView}-${props.cameraResetKey ?? 0}`} {...props} />;
+}
+
+function OrbitCanvas({ objects, surfaceStrokes, initialSide = "front", cameraView, onGardenSideChange, editor }:
+  ViewerProps & { editor?: Props }) {
+  const [angle, setAngle] = useState(() => getOrbitFrameAngle(cameraView ? getOrbitViewAngle(cameraView) : getOrbitViewAngle("front", initialSide)));
+  const requestedAngle = useRef(angle);
+  const mounted = useRef(false);
   const [zoom, setZoom] = useState(INITIAL_ZOOM);
-  const camera = useMemo(() => makeCamera(view), [view]);
+  const camera = useMemo(() => makeCamera(angle), [angle]);
   const worldRef = useRef<SVGGElement>(null);
   const gesture = useRef<Gesture | null>(null);
   const touches = useRef(new Map<number, Point2D>());
   const pinch = useRef<{ distance: number; anchor: Point2D; scale: number } | null>(null);
-  const surface = activeSurfaceId && findSampleSchoolSurfaceMaterial(activeSurfaceId);
+  const surface = editor?.activeSurfaceId && findSampleSchoolSurfaceMaterial(editor.activeSurfaceId);
+  const side = getOrbitGardenSide(angle);
+  const hintId = useId();
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+  useEffect(() => {
+    onGardenSideChange?.(side);
+  }, [side, onGardenSideChange]);
+  useEffect(() => {
+    for (const offset of [-2, -1, 0, 1, 2]) void loadFrame(angle + offset * BONGSUN_ORBIT_STEP);
+  }, [angle]);
+
+  function rotateTo(degrees: number) {
+    const next = getOrbitFrameAngle(degrees);
+    if (next === requestedAngle.current) return;
+    requestedAngle.current = next;
+    if (loadedFrames.has(next)) {
+      setAngle(next);
+      return;
+    }
+    // A slower connection may decode several intermediate frames while the
+    // finger is still moving. Show them in travel order without flashing blank.
+    function advance() {
+      if (!mounted.current) return;
+      const target = requestedAngle.current;
+      setAngle(current => {
+        const delta = (target - current + 540) % 360 - 180;
+        const direction = Math.sign(delta);
+        for (let distance = Math.abs(delta); distance > 0; distance -= BONGSUN_ORBIT_STEP) {
+          const candidate = getOrbitFrameAngle(current + distance * direction);
+          if (loadedFrames.has(candidate)) return candidate;
+        }
+        return current;
+      });
+    }
+    advance();
+    void loadFrame(next).then(ready => {
+      if (ready) advance();
+      else if (mounted.current && requestedAngle.current === next) requestedAngle.current = angle;
+    });
+  }
 
   function worldPointer(clientX: number, clientY: number) {
     return worldRef.current && svgPoint(worldRef.current, clientX, clientY);
@@ -193,7 +282,7 @@ function EditorView({ objects, surfaceStrokes, selectedId, activeMaterialId, act
   function down(event: PointerEvent<SVGSVGElement>) {
     if (event.button !== 0 || touches.current.size >= 2) return;
     const p = worldPointer(event.clientX, event.clientY);
-    if (!p || p.x < 0 || p.x > WIDTH || p.y < 0 || p.y > HEIGHT) return;
+    if (!p) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     touches.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (touches.current.size === 2) {
@@ -203,18 +292,19 @@ function EditorView({ objects, surfaceStrokes, selectedId, activeMaterialId, act
       gesture.current = null;
       return;
     }
-    const action: Gesture = { id: event.pointerId, start: p, screenX: event.clientX, screenY: event.clientY, view };
+    const action: Gesture = { id: event.pointerId, start: p, screenX: event.clientX, screenY: event.clientY, angle: requestedAngle.current };
     gesture.current = action;
-    const point = groundAt(camera, p);
-    if (surface && point && isSampleSchoolSurfacePlacementAllowed(point, surface.widthMeters, true)) {
-      action.stroke = "surface-stroke-" + crypto.randomUUID();
-      onPaintSurface(action.stroke, surface.id, point, true);
+    if (!editor) return;
+    const hit = groundAt(camera, p);
+    if (surface && hit && isSampleSchoolSurfacePlacementAllowed(hit.point, surface.widthMeters, true)) {
+      action.stroke = { id: "surface-stroke-" + crypto.randomUUID(), side: hit.side };
+      editor.onPaintSurface(action.stroke.id, surface.id, hit.point, true, hit.side);
       return;
     }
     if (surface) return;
     const id = (event.target as Element).closest("[data-object]")?.getAttribute("data-object");
-    action.item = objects.find(o => o.id === id);
-    if (action.item || !activeMaterialId) onSelect(action.item?.id ?? null);
+    action.item = id ? objects.find(o => o.id === id) : undefined;
+    if (action.item || !editor.activeMaterialId) editor.onSelect(action.item?.id ?? null);
   }
 
   function move(event: PointerEvent<SVGSVGElement>) {
@@ -236,54 +326,74 @@ function EditorView({ objects, surfaceStrokes, selectedId, activeMaterialId, act
     const dx = event.clientX - action.screenX;
     const dy = event.clientY - action.screenY;
     if (Math.hypot(dx, dy) > 6) action.moved = true;
-    if (action.stroke && surface) {
-      const point = groundAt(camera, p);
-      if (point && isSampleSchoolSurfacePlacementAllowed(point, surface.widthMeters, true)) {
-        onPaintSurface(action.stroke, surface.id, point, false);
+    if (action.stroke && surface && editor) {
+      const hit = groundAt(camera, p);
+      if (hit && hit.side === action.stroke.side && isSampleSchoolSurfacePlacementAllowed(hit.point, surface.widthMeters, true)) {
+        editor.onPaintSurface(action.stroke.id, surface.id, hit.point, false, hit.side);
       }
-    } else if (action.item && action.moved) {
-      const world = normalizedToSampleSchool(action.item);
+    } else if (action.item && action.moved && editor) {
+      const itemSide = action.item.gardenSide ?? "front";
+      const world = localToCampusPoint(normalizedToSampleSchool(action.item), itemSide);
       const anchor = project(camera, world.x, 0, world.z);
-      const point = groundAt(camera, { x: anchor.x + p.x - action.start.x, y: anchor.y + p.y - action.start.y });
-      if (point) onMove(action.item.id, point);
+      const hit = groundAt(camera, { x: anchor.x + p.x - action.start.x, y: anchor.y + p.y - action.start.y });
+      if (hit && hit.side === itemSide) editor.onMove(action.item.id, hit.point);
     } else if (action.moved && Math.abs(dx) >= Math.abs(dy)) {
-      const fullSweep = Math.max(90, event.currentTarget.getBoundingClientRect().width * 0.48);
-      const angle = VIEWS[action.view].angle - dx / fullSweep * 90;
-      const nearest = VIEWS.reduce((best, v, i) =>
-        Math.abs(v.angle - angle) < Math.abs(VIEWS[best].angle - angle) ? i : best, action.view);
-      setView(nearest);
+      rotateTo(orbitDragAngle(action.angle, dx, event.currentTarget.getBoundingClientRect().width));
     }
   }
 
   function finish(event: PointerEvent<SVGSVGElement>) {
     const action = gesture.current;
-    if (event.type === "pointerup" && action?.id === event.pointerId && !action.moved && !action.item
-      && !surface && activeMaterialId) {
-      const p = worldPointer(event.clientX, event.clientY);
-      const point = p && groundAt(camera, p);
-      if (point) onPlace(activeMaterialId, point);
+    if (event.type === "pointerup" && action?.id === event.pointerId) {
+      const delta = Math.hypot(event.clientX - action.screenX, event.clientY - action.screenY);
+      if (delta > 6) move(event);
+      if (!action.moved && !action.item && !surface && editor?.activeMaterialId) {
+        const p = worldPointer(event.clientX, event.clientY);
+        const hit = p && groundAt(camera, p);
+        if (hit) editor.onPlace(editor.activeMaterialId, hit.point, hit.side);
+      }
     }
     touches.current.delete(event.pointerId);
     if (touches.current.size < 2) pinch.current = null;
     if (action?.id === event.pointerId) gesture.current = null;
   }
 
+  const label = getOrbitViewLabel(angle);
   return (
-    <svg className={styles.editor} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="group"
-      aria-label={gardenSide === "rear" ? "봉선중학교 수업용 뒤뜰 조경 편집" : "봉선중학교 본관 앞 화단 조경 편집"} onPointerDown={down} onPointerMove={move}
+    <svg className={editor ? styles.editor : styles.viewer} viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+      tabIndex={0} role={editor ? "group" : "slider"}
+      aria-label={editor ? `봉선중학교 ${label} 조경 편집` : "봉선중학교를 보는 방향"}
+      aria-describedby={hintId}
+      aria-valuemin={editor ? undefined : 0} aria-valuemax={editor ? undefined : 360 - BONGSUN_ORBIT_STEP}
+      aria-valuenow={editor ? undefined : angle} aria-valuetext={editor ? undefined : label + " · " + angle + "도"}
+      onKeyDown={event => {
+        if (event.target !== event.currentTarget) return;
+        let next: number;
+        switch (event.key) {
+          case "ArrowLeft": next = requestedAngle.current - BONGSUN_ORBIT_STEP; break;
+          case "ArrowRight": next = requestedAngle.current + BONGSUN_ORBIT_STEP; break;
+          case "Home": next = 0; break;
+          case "End": next = 360 - BONGSUN_ORBIT_STEP; break;
+          default: return;
+        }
+        event.preventDefault();
+        rotateTo(next);
+      }}
+      onPointerDown={down} onPointerMove={move}
       onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}
-      onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }}
-      onDrop={event => {
+      onDragOver={editor ? event => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } : undefined}
+      onDrop={editor ? event => {
         event.preventDefault();
         const id = event.dataTransfer.getData("text/gardening-material");
         const p = worldPointer(event.clientX, event.clientY);
-        const point = p && groundAt(camera, p);
-        if (id && point) onPlace(id, point);
-      }} data-placing={Boolean(surface || activeMaterialId)}>
+        const hit = p && groundAt(camera, p);
+        if (id && hit) editor.onPlace(id, hit.point, hit.side);
+      } : undefined} data-placing={Boolean(surface || editor?.activeMaterialId)}>
+      <desc id={hintId}>좌우로 끌거나 방향키로 학교를 한 바퀴 돌아보세요.</desc>
       <svg width={WIDTH} height={HEIGHT} overflow="hidden">
         <g ref={worldRef} transform={`translate(${zoom.x} ${zoom.y}) scale(${zoom.scale})`}>
           <GardenLayers objects={objects} surfaceStrokes={surfaceStrokes} camera={camera}
-            gardenSide={gardenSide} view={view} selectedId={selectedId} onSelect={onSelect} />
+            angle={angle} selectedId={editor?.selectedId} onSelect={editor?.onSelect} />
         </g>
       </svg>
     </svg>
