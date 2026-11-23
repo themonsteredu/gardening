@@ -1,7 +1,9 @@
+import Image from "next/image";
 import Link from "next/link";
 import { AppHeader } from "@/components/AppHeader";
-import { PlanPreview } from "@/components/PlanPreview";
 import { PROJECT_FLOW } from "@/data/demo-project";
+import schoolGarden from "./images/school-garden.png";
+import styles from "./home.module.css";
 
 export default function HomePage() {
   return (
@@ -49,15 +51,25 @@ export default function HomePage() {
           <div className="hero-visual">
             <div className="visual-caption visual-caption--top">
               <span className="caption-index">SITE 01</span>
-              <strong>푸른솔중학교 중앙 광장</strong>
+              <strong>우리가 만드는 학교 정원</strong>
             </div>
-            <PlanPreview />
+            <div className={styles.photo}>
+              <Image
+                src={schoolGarden}
+                alt="학교 건물 앞에 나무와 꽃, 벤치와 산책길이 어우러진 쉼정원"
+                fill
+                preload
+                placeholder="blur"
+                sizes="(max-width: 700px) 92vw, (max-width: 1100px) 780px, (max-width: 1450px) 46vw, 650px"
+                className={styles.photoImage}
+              />
+            </div>
             <div className="visual-caption visual-caption--bottom">
               <div>
-                <small>현재 단계</small>
-                <strong>평면 조경 설계</strong>
+                <small>오늘의 프로젝트</small>
+                <strong>학교 정원 설계</strong>
               </div>
-              <span className="status-dot">설계 중</span>
+              <span className="status-dot">설계 예시</span>
             </div>
           </div>
         </section>
