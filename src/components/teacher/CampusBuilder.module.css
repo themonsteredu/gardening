@@ -1,0 +1,90 @@
+.page {
+  --pine: #184633;
+  --ink: #183227;
+  --muted: #52675d;
+  --line: #d4ddd4;
+  --paper: #fffefb;
+  min-height: 100svh;
+  background: #f5f6ef;
+  color: var(--ink);
+  word-break: keep-all;
+}
+.main { width: min(100%, 1420px); margin: auto; padding: 1.5rem clamp(1rem, 4vw, 4.25rem) 4rem; }
+.back, .source, .textButton { color: var(--pine); text-decoration: underline; text-underline-offset: .23em; font-size: .88rem; }
+.back { display: inline-flex; align-items: center; min-height: 42px; }
+.header { display: flex; justify-content: space-between; gap: 2rem; align-items: flex-end; margin: 1rem 0 1.65rem; }
+.header h1 { margin: 0; color: #16382a; font-size: clamp(1.8rem, 3.4vw, 3rem); line-height: 1.12; letter-spacing: -.055em; }
+.header p { margin: .7rem 0 0; line-height: 1.65; color: var(--muted); font-size: 1rem; }
+.savedSelect { display: grid; gap: .35rem; min-width: 210px; max-width: 340px; font-size: .87rem; font-weight: 600; }
+.columns { display: grid; grid-template-columns: minmax(300px, .76fr) minmax(0, 1.24fr); gap: 1.35rem; align-items: start; }
+.formCard, .previewCard, .classCard { border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+.formCard, .classCard { padding: clamp(1rem, 2.1vw, 1.85rem); }
+.formCard h2, .previewCard h2, .classCard h2 { margin: 0; color: var(--ink); line-height: 1.3; font-size: 1.28rem; letter-spacing: -.04em; }
+.formCard h2:first-child { margin-bottom: 1rem; }
+.formCard hr { height: 1px; background: var(--line); border: 0; margin: 1.5rem 0; }
+.formCard input:not([type="file"]):not([type="color"]):not([type="range"]), .page select, .classCard input {
+  box-sizing: border-box; min-width: 0; border: 1px solid #b9c9bd; border-radius: 6px; min-height: 44px; padding: .55rem .78rem;
+  color: var(--ink); background: #fff; font: inherit; font-size: .94rem;
+}
+.page :is(input, button, select, a):focus-visible { outline: 3px solid #639571; outline-offset: 2px; }
+.page button:disabled { opacity: .52; cursor: default; }
+.field { display: flex; flex-direction: column; gap: .35rem; margin: .8rem 0 .35rem; font-size: .9rem; font-weight: 600; }
+.field input, .field select { width: 100%; }
+.row { display: flex; gap: .45rem; align-items: stretch; }
+.row input { flex: 1; }
+.primary, .primaryFull, .secondary, .upload {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: .58rem .85rem;
+  border: 1px solid #aebeb1; border-radius: 6px; font: inherit; font-size: .94rem; font-weight: 600; white-space: nowrap; cursor: pointer;
+}
+.primary, .primaryFull { color: #fff; border-color: var(--pine); background: var(--pine); }
+.primary:hover:enabled, .primaryFull:hover:enabled { background: #245c42; }
+.primaryFull { width: 100%; margin-top: 1rem; }
+.secondary, .upload { color: var(--pine); background: #fff; }
+.secondary:hover:enabled, .upload:hover, .upload:focus-within { background: #edf4ec; }
+.help, .source, .previewNote p { font-size: .88rem; line-height: 1.5; }
+.help, .previewNote p { color: var(--muted); margin: .45rem 0; }
+.source { display: inline-flex; align-items: center; min-height: 36px; margin: .2rem 0; }
+.resetFieldset { min-width: 0; margin: .75rem 0 0; padding: 0; border: 0; }
+.results { display: grid; list-style: none; padding: 0; margin: .45rem 0; border: 1px solid var(--line); overflow-y: auto; max-height: 240px; border-radius: 6px; }
+.results li + li { border-top: 1px solid var(--line); }
+.results button { width: 100%; display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; padding: .7rem .8rem; min-height: 44px; background: #fff; text-align: start; border: 0; color: var(--ink); cursor: pointer; }
+.results button:hover, .results button:focus-visible { background: #eef5ee; }
+.results span { font-size: .82rem; color: var(--muted); }
+.registered h3 { margin: .3rem 0 0; }
+.registered p { margin: .3rem 0 1rem; color: var(--muted); }
+.params { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .25rem .75rem; margin-top: .75rem; }
+.params .field { margin-top: 0; }
+.colorField { display: flex; justify-content: space-between; align-items: center; font-size: .88rem; gap: .4rem; }
+.colorField input { min-width: 44px; width: 48px; height: 40px; border: 1px solid var(--line); border-radius: 5px; background: #fff; cursor: pointer; }
+.logoRow { display: flex; align-items: center; gap: .55rem; margin-top: .8rem; min-height: 44px; }
+.logoRow img { object-fit: contain; }
+.upload { position: relative; }
+.upload:focus-within { outline: 3px solid #639571; outline-offset: 2px; }
+.upload input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.textButton { border: 0; padding: .3rem; background: transparent; font: inherit; font-size: .85rem; cursor: pointer; }
+.right { position: sticky; top: .75rem; display: grid; gap: 1rem; min-width: 0; }
+.previewCard { overflow: hidden; }
+.previewHeading, .previewNote { display: flex; align-items: center; justify-content: space-between; gap: .8rem; padding: .8rem 1.1rem; }
+.previewHeading span { color: var(--muted); font-size: .85rem; }
+.viewport { position: relative; width: 100%; aspect-ratio: 1100 / 520; background: linear-gradient(155deg, #e4eee9, #d5e1d9); isolation: isolate; overflow: hidden; }
+.viewport > svg { position: absolute; inset: 0; }
+.wait { position: absolute; inset: 0; margin: 0; display: grid; align-content: center; justify-items: center; justify-content: center; color: #385745; text-align: center; padding: 1rem; line-height: 1.7; }
+.share { margin-top: 1.1rem; }
+.classLinks { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; margin-top: .9rem; }
+.share h3 { font-size: 1rem; margin: .7rem 0; }
+.status, .error { margin: 0; padding: .7rem .85rem; border-radius: 6px; background: #edf4eb; color: #2b513a; font-size: .91rem; line-height: 1.6; }
+.error { background: #fff0eb; color: #803b2d; }
+@media (max-width: 840px) {
+  .main { padding-top: .8rem; }
+  .columns { grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr); gap: .8rem; }
+  .previewHeading, .previewNote { align-items: start; flex-wrap: wrap; }
+  .previewNote { gap: .4rem; }
+}
+@media (max-width: 660px) {
+  .main { padding-inline: .85rem; }
+  .header { flex-direction: column; align-items: stretch; gap: .85rem; margin-top: .35rem; }
+  .savedSelect { min-width: 0; max-width: none; }
+  .columns { grid-template-columns: 1fr; gap: .95rem; }
+  .right { position: static; }
+  .viewport { min-height: 166px; }
+}

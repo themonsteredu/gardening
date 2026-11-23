@@ -4,12 +4,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { type ChangeEvent, useMemo, useRef, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { ClassJoinShare } from "./ClassJoinShare";
+import { SchoolClassPicker, SharedClassPanel } from "./SharedClassPanel";
 import { DEMO_PROJECT, DEMO_STUDENTS } from "@/data/demo-project";
 import {
   LANDSCAPE_STAGE_LABELS,
   type SchoolProject,
 } from "@/domain/models";
 import { generateClassCode } from "@/lib/class-code";
+import { isBongsunSchool } from "@/lib/sample-school";
 import {
   createSchoolLogoDataUrl,
   SCHOOL_LOGO_ACCEPT,
@@ -133,14 +136,12 @@ export function TeacherDashboard() {
             <h1>수업 설계실</h1>
             <p>학교 공간과 실제 재료를 준비하고 학생의 설계 과정을 확인합니다.</p>
           </div>
-          <button
-            className="button button--primary"
-            type="button"
-            onClick={openEditor}
-          >
-            수업 기본 정보 편집
-          </button>
+          <div className="teacher-heading-actions">
+            <Link className="button button--quiet" href="/teacher/lesson">조경전문가 수업 PPT</Link>
+            <Link className="button button--primary" href="/teacher/campuses">학교 모형 만들기 · 수업 열기</Link>
+          </div>
         </div>
+        <SchoolClassPicker project={project} />
 
         <section className="project-strip" aria-label="현재 수업">
           <div className="project-strip__identity">
@@ -192,7 +193,7 @@ export function TeacherDashboard() {
             className={tab === "students" ? "is-active" : ""}
             onClick={() => setTab("students")}
           >
-            학생 현황 <span>{DEMO_STUDENTS.length}</span>
+            학생 현황 {!project.sharedClass && <span>{DEMO_STUDENTS.length}</span>}
           </button>
           <button
             type="button"
@@ -206,10 +207,11 @@ export function TeacherDashboard() {
         </div>
 
         {tab === "setup" ? (
-          <SetupPanel project={project} miniGardenKits={miniGardenKits} onStart={startClass} />
+          <SetupPanel project={project} miniGardenKits={miniGardenKits} onStart={startClass} onEdit={openEditor} />
         ) : null}
-        {tab === "students" ? <StudentsPanel /> : null}
-        {tab === "gallery" ? <GalleryPanel /> : null}
+        {tab !== "setup" && (project.sharedClass
+          ? <SharedClassPanel key={project.classCode} project={project} gallery={tab === "gallery"} />
+          : tab === "students" ? <StudentsPanel /> : <GalleryPanel />)}
       </main>
 
       {editorOpen ? (
@@ -234,6 +236,17 @@ export function TeacherDashboard() {
                   maxLength={40}
                 />
               </label>
+              {!isBongsunSchool(form.schoolName) && (
+                <div>
+                  <button
+                    className="school-logo-button"
+                    type="button"
+                    onClick={() => setForm((current) => ({ ...current, schoolName: "봉선중학교" }))}
+                  >
+                    광주 봉선중학교 선택
+                  </button>
+                </div>
+              )}
               <div className="school-logo-field">
                 <span className="school-logo-field__label">학교 로고</span>
                 <div className="school-logo-field__content">
@@ -295,7 +308,9 @@ export function TeacherDashboard() {
             </div>
 
             <div className="drawer-note">
-              모든 학생은 같은 3D 샘플 중학교에서 조경을 시작합니다.
+              {isBongsunSchool(form.schoolName)
+                ? "학생은 봉선중학교 본관 앞과 수업용 뒤뜰을 오가며 정원을 꾸밉니다."
+                : "학생은 학교명이 표시된 기본 3D 캠퍼스에서 조경을 시작합니다."}
             </div>
             <div className="drawer-actions">
               <button className="button button--quiet" type="button" onClick={() => setEditorOpen(false)}>
@@ -321,28 +336,43 @@ function SetupPanel({
   project,
   miniGardenKits,
   onStart,
+  onEdit,
 }: {
   project: SchoolProject;
   miniGardenKits: ReturnType<typeof parseStoredMiniGardenKits>;
   onStart: () => void;
+  onEdit: () => void;
 }) {
   const hasKit = Boolean(project.miniGardenKitId && miniGardenKits.some((kit) => kit.id === project.miniGardenKitId));
+  const isBongsun = project.campusModel ? project.campusModel.kind === "bongsun" : isBongsunSchool(project.schoolName);
 
   return (
     <section className="dashboard-content dashboard-content--setup">
       <div className="teacher-simple-setup">
         <header>
-          <div><h2>3D 학교 준비</h2><p>설정한 학교명과 조경 재료가 3D 캠퍼스에 반영됩니다.</p></div>
+          <div><h2>{project.sharedClass ? "학생 입장" : "3D 학교 준비"}</h2><p>{project.sharedClass ? project.schoolName + " · " + project.className : "출강할 학교의 본관 모형을 만들고 반별 수업을 열 수 있어요."}</p></div>
           <span className="is-ready">준비됨</span>
         </header>
-        <div className="teacher-sample-campus">
+        {project.sharedClass ? <ClassJoinShare code={project.classCode} /> : <div className="teacher-sample-campus">
           <div className="teacher-sample-campus__mark"><span /><span /><span /></div>
-          <div><small>기본 실습 공간</small><strong>{project.schoolName} 3D 캠퍼스</strong><p>본관 · 별관 · 운동장 · 중앙정원 · 보행로</p></div>
-          <ul><li>항공샷</li><li>360° 입체</li><li>학생 시점</li></ul>
-        </div>
+          <div>
+            <small>{isBongsun ? "본관 정면 사진 기반" : "기본 실습 공간"}</small>
+            <strong>{project.schoolName} {isBongsun ? "본관 주변" : "3D 캠퍼스"}</strong>
+            <p>{isBongsun ? "본관 앞은 학교 전경 사진을 참고했고, 뒤뜰은 수업용 예시 공간이에요." : "본관 · 별관 · 운동장 · 중앙정원 · 보행로"}</p>
+          </div>
+          {isBongsun ? (
+            <ul><li>정면 보기</li><li>좌우 회전</li></ul>
+          ) : (
+            <ul><li>항공샷</li><li>360° 입체</li><li>학생 시점</li></ul>
+          )}
+        </div>}
         <div className="teacher-simple-actions">
+          {!project.sharedClass && <Link className="button button--quiet" href="/preview/bongsun">봉선중 본관 미리보기</Link>}
           <Link className="button button--quiet" href="/teacher/mini-garden-kit">{hasKit ? "오늘의 재료 바꾸기" : "오늘의 재료 준비"}</Link>
-          <button className="button button--primary" type="button" onClick={onStart}>수업 시작</button>
+          {!project.sharedClass && <>
+            <button className="button button--quiet" type="button" onClick={onEdit}>수업 기본 정보 편집</button>
+            <button className="button button--primary" type="button" onClick={onStart}>기기 내 수업 시작</button>
+          </>}
         </div>
         <p className="teacher-simple-mission"><strong>오늘의 의뢰</strong><span>{project.mission}</span></p>
       </div>

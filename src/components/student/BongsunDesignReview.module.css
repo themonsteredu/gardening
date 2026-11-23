@@ -1,0 +1,4 @@
+.review { color: #274839; background: #f5f7f3; }
+.scene { position: relative; aspect-ratio: 1100 / 520; overflow: hidden; background: #dce7e5; }
+.caption { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .65rem; padding: .5rem .85rem; font-size: .83rem; }
+.caption span:last-child { margin-inline-start: auto; }

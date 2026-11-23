@@ -1,0 +1,116 @@
+[
+  {
+    "schoolName": "봉선중학교",
+    "schoolCode": "7402271",
+    "region": "광주 남구",
+    "homepage": "http://bongsun.gen.ms.kr"
+  },
+  {
+    "schoolName": "주월중학교",
+    "schoolCode": "7402278",
+    "region": "광주 남구",
+    "homepage": "http://juwol.gen.ms.kr"
+  },
+  {
+    "schoolName": "문성중학교",
+    "schoolCode": "7402311",
+    "region": "광주 남구",
+    "homepage": "http://munseong.gen.ms.kr"
+  },
+  {
+    "schoolName": "광주동성중학교",
+    "schoolCode": "7402323",
+    "region": "광주 남구",
+    "homepage": "http://dongsung.gen.ms.kr"
+  },
+  {
+    "schoolName": "금당중학교",
+    "schoolCode": "7402279",
+    "region": "광주 남구",
+    "homepage": "http://keumdang.gen.ms.kr/"
+  },
+  {
+    "schoolName": "광주수피아여자중학교",
+    "schoolCode": "7402328",
+    "region": "광주 남구",
+    "homepage": "http://speer.gen.ms.kr/"
+  },
+  {
+    "schoolName": "광주송원중학교",
+    "schoolCode": "7402309",
+    "region": "광주 남구",
+    "homepage": "http://swon.gen.ms.kr"
+  },
+  {
+    "schoolName": "대성여자중학교",
+    "schoolCode": "7402313",
+    "region": "광주 남구",
+    "homepage": "https://kds.gen.ms.kr:452"
+  },
+  {
+    "schoolName": "봉선초등학교",
+    "schoolCode": "7402185",
+    "region": "광주 남구",
+    "homepage": "https://bongsun.jge.es.kr"
+  },
+  {
+    "schoolName": "조봉초등학교",
+    "schoolCode": "7402195",
+    "region": "광주 남구",
+    "homepage": "jobong.gen.es.kr"
+  },
+  {
+    "schoolName": "유안초등학교",
+    "schoolCode": "7402191",
+    "region": "광주 남구",
+    "homepage": "http://yuan.gen.es.kr"
+  },
+  {
+    "schoolName": "설월여자고등학교",
+    "schoolCode": "7140352",
+    "region": "광주 남구",
+    "homepage": "https://seolwol.gen.hs.kr:453"
+  },
+  {
+    "schoolName": "전남여자고등학교",
+    "schoolCode": "7140326",
+    "region": "광주 동구",
+    "homepage": "http://chonnam-g.gen.hs.kr"
+  },
+  {
+    "schoolName": "조선대학교여자고등학교",
+    "schoolCode": "7140355",
+    "region": "광주 동구",
+    "homepage": "http://chosun-g.gen.hs.kr/"
+  },
+  {
+    "schoolName": "광주서광중학교",
+    "schoolCode": "7402273",
+    "region": "광주 남구",
+    "homepage": "http://seogwang.gen.ms.kr"
+  },
+  {
+    "schoolName": "송광중학교",
+    "schoolCode": "7402296",
+    "region": "광주 광산구",
+    "homepage": "http://songgwang.gen.ms.kr "
+  },
+  {
+    "schoolName": "보성중학교",
+    "schoolCode": "8602003",
+    "region": "전남 보성군",
+    "homepage": "https://boseong.jge.ms.kr/"
+  },
+  {
+    "schoolName": "무안중학교",
+    "schoolCode": "8662003",
+    "region": "전남 무안군",
+    "homepage": "http://muan16.ms.jne.kr"
+  },
+  {
+    "schoolName": "나주중학교",
+    "schoolCode": "8532003",
+    "region": "전남 나주시",
+    "homepage": "http://naju.jge.ms.kr"
+  }
+]

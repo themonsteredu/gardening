@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import type {
+  Box3,
   Group,
   Material,
   Mesh,
@@ -16,8 +18,15 @@ import type {
 } from "three";
 import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { findLandscapeMaterial, LANDSCAPE_MATERIALS, type PlanLandscapeMaterial } from "@/data/landscape-materials";
-import type { LandscapeObject, Point2D, SchoolSurfaceMaterialId, SchoolSurfaceStroke } from "@/domain/models";
+import type { LandscapeObject, Point2D, SchoolGardenSide, SchoolSurfaceMaterialId, SchoolSurfaceStroke } from "@/domain/models";
+import { createBongsunCampus } from "@/lib/bongsun-campus";
 import {
+  BONGSUN_BUILDING_BOUNDS, BONGSUN_ORBIT_STEP, campusToLocalPoint, getOrbitCameraPose,
+  getOrbitGardenSide, getOrbitViewAngle, localToCampusPoint,
+} from "@/lib/bongsun-orbit";
+import {
+  BONGSUN_FRONT_GARDEN,
+  isBongsunSchool,
   isSampleSchoolSurfacePointOpen,
   isSampleSchoolSurfacePlacementAllowed,
   SAMPLE_SCHOOL_DEPTH_METERS,
@@ -26,7 +35,9 @@ import {
   sampleSchoolToNormalized,
 } from "@/lib/sample-school";
 
-export type SampleSchoolCameraView = "aerial" | "orbit" | "rear" | "walk";
+const BongsunCompatibleEditor = dynamic(() => import("./BongsunCompatibleEditor").then((module) => module.BongsunCompatibleEditor));
+
+export type SampleSchoolCameraView = "front" | "front-left" | "front-right" | "aerial" | "orbit" | "rear" | "walk";
 
 const CAMPUS_TEXTURE_URLS = [
   "/assets/photoreal/bare-soil-texture.png",
@@ -35,6 +46,10 @@ const CAMPUS_TEXTURE_URLS = [
 ] as const;
 
 interface SceneRuntime {
+  bongsun: boolean;
+  schoolWalls: Box3[];
+  gardenSide: SchoolGardenSide;
+  orbitFit: number;
   THREE: typeof import("three");
   scene: Scene;
   camera: PerspectiveCamera;
@@ -56,29 +71,34 @@ interface SceneRuntime {
 }
 
 interface SceneCallbacks {
-  onPlace: (materialId: string, point: Point2D) => void;
+  onPlace: (materialId: string, point: Point2D, side?: SchoolGardenSide) => void;
   onMove: (objectId: string, point: Point2D) => void;
   onSelect: (objectId: string | null) => void;
-  onPaintSurface: (strokeId: string, materialId: SchoolSurfaceMaterialId, point: Point2D, startsStroke: boolean) => void;
+  onPaintSurface: (strokeId: string, materialId: SchoolSurfaceMaterialId, point: Point2D, startsStroke: boolean, side?: SchoolGardenSide) => void;
 }
 
 const LAWN_TEXTURE_URL = "/materials/landscape/lawn.webp";
+// The crest on this sign comes from the official bongsun.jge.ms.kr desktop header (images/common/logo.jpg).
+const BONGSUN_NAMEPLATE_URL = "/assets/schools/bongsun/nameplate.png";
 const LAWN_CELL_SIZE_METERS = 0.07;
 const LAWN_TEXTURE_TILE_METERS = 1.35;
 
-function disposeObject(root: Object3D) {
+function disposeObject(root: Object3D, keepMaterials = false) {
   root.traverse((object) => {
-    const candidate = object as Object3D & { geometry?: { dispose: () => void }; material?: Material | Material[] };
-    candidate.geometry?.dispose();
+    // GLTF clones share their template resources. Three.js sprites share a single geometry.
+    if (object.userData.templateMesh) return;
+    const candidate = object as Object3D & { isSprite?: boolean; geometry?: { dispose: () => void }; material?: Material | Material[] };
+    if (!candidate.isSprite) candidate.geometry?.dispose();
+    if (keepMaterials) return;
     const materials = Array.isArray(candidate.material) ? candidate.material : candidate.material ? [candidate.material] : [];
     for (const material of materials) material.dispose();
   });
 }
 
-function clearGroup(group: Group, dispose = true) {
+function clearGroup(group: Group, keepMaterials = false) {
   for (const child of [...group.children]) {
     group.remove(child);
-    if (dispose) disposeObject(child);
+    disposeObject(child, keepMaterials);
   }
 }
 
@@ -95,11 +115,40 @@ function setInteractiveObjectId(root: Object3D, id: string) {
   root.traverse((object) => { object.userData.landscapeObjectId = id; });
 }
 
+// Reframe around the end of the long building without changing the user's zoom or elevation.
+function trackCampusOrbit(runtime: SceneRuntime) {
+  const { camera, controls } = runtime;
+  const degrees = controls.getAzimuthalAngle() * 180 / Math.PI;
+  const { position, target } = getOrbitCameraPose(degrees, camera.aspect);
+  const fit = Math.hypot(position.x - target.x, position.y - target.y, position.z - target.z);
+  if (fit !== runtime.orbitFit || controls.target.z !== target.z) {
+    camera.position.sub(controls.target).multiplyScalar(fit / runtime.orbitFit);
+    controls.target.set(target.x, target.y, target.z);
+    camera.position.add(controls.target);
+    camera.updateMatrixWorld();
+    runtime.orbitFit = fit;
+  }
+  // Keep the camera outside the end walls when it orbits from a zoomed-in facade.
+  const endOn = Math.abs(Math.sin(degrees * Math.PI / 180));
+  controls.minDistance = 6 + 9 * endOn;
+  controls.maxDistance = fit * 1.65;
+  return getOrbitGardenSide(degrees);
+}
+
 function applyCamera(runtime: SceneRuntime | null, view: SampleSchoolCameraView) {
   if (!runtime) return;
   const { camera, controls } = runtime;
   runtime.cameraView = view;
-  if (view === "aerial") {
+  if (runtime.bongsun) {
+    const { position, target } = getOrbitCameraPose(getOrbitViewAngle(view), camera.aspect);
+    controls.target.set(target.x, target.y, target.z);
+    camera.position.set(position.x, position.y, position.z);
+    runtime.orbitFit = camera.position.distanceTo(controls.target);
+    controls.minPolarAngle = Math.PI * 0.33;
+    controls.maxPolarAngle = Math.PI * 0.485;
+    controls.minDistance = 6;
+    controls.maxDistance = runtime.orbitFit * 1.65;
+  } else if (view === "aerial") {
     camera.position.set(0, 32, 0.001);
     controls.target.set(0, 0, 0);
     controls.minDistance = 20;
@@ -267,14 +316,42 @@ function buildSampleCampus(runtime: SceneRuntime, schoolName: string, schoolLogo
   scene.add(campus);
 
   const soilTexture = cloneTiledTexture(runtime, CAMPUS_TEXTURE_URLS[0], 7, 5);
+  const rearOriginZ = runtime.bongsun ? localToCampusPoint({ x: 0, z: 0 }, "rear").z : 0;
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(SAMPLE_SCHOOL_WIDTH_METERS, SAMPLE_SCHOOL_DEPTH_METERS),
+    new THREE.PlaneGeometry(SAMPLE_SCHOOL_WIDTH_METERS, SAMPLE_SCHOOL_DEPTH_METERS - rearOriginZ),
     new THREE.MeshStandardMaterial({ map: soilTexture, color: 0xffffff, roughness: 1, metalness: 0 }),
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   ground.name = "empty-school-placement-ground";
   campus.add(ground);
+
+  if (runtime.bongsun) {
+    campus.add(createBongsunCampus(THREE, runtime.textures.get(BONGSUN_NAMEPLATE_URL)));
+    // Two volumes block picking through the school without raycasting each instanced window.
+    runtime.schoolWalls = BONGSUN_BUILDING_BOUNDS.map(({ min, max }) =>
+      new THREE.Box3(new THREE.Vector3(...min), new THREE.Vector3(...max)));
+    ground.position.z = rearOriginZ / 2;
+    ground.material.color.set(0xe1c593);
+    const field = new THREE.Mesh(
+      new THREE.PlaneGeometry(180, 165),
+      new THREE.MeshStandardMaterial({ color: 0xcbb793, roughness: 1 }),
+    );
+    field.rotation.x = -Math.PI / 2;
+    field.position.y = -0.018;
+    field.receiveShadow = true;
+    campus.add(field);
+    const bed = BONGSUN_FRONT_GARDEN;
+    const bedMesh = new THREE.Mesh(new THREE.PlaneGeometry(bed.width, bed.depth),
+      new THREE.MeshStandardMaterial({ map: soilTexture, color: 0xc0a07f, roughness: 1 }));
+    bedMesh.rotation.x = -Math.PI / 2;
+    bedMesh.position.set(0, 0.002, bed.centerZ);
+    bedMesh.receiveShadow = true;
+    const rearBed = bedMesh.clone();
+    rearBed.position.z = localToCampusPoint({ x: 0, z: bed.centerZ }, "rear").z;
+    campus.add(bedMesh, rearBed);
+    return ground;
+  }
 
   addSchoolBuilding(runtime, campus, { x: 0, z: -5, width: 18, depth: 3.2, height: 5.4, floors: 3 });
   addSchoolBuilding(runtime, campus, { x: -8, z: -0.05, width: 3, depth: 7.2, height: 5.4, floors: 3 });
@@ -328,7 +405,7 @@ function createSurfaceStrokeMesh(runtime: SceneRuntime, stroke: SchoolSurfaceStr
   const material = runtime.surfaceMaterials.get(stroke.materialId);
   if (!material) return null;
   const points = stroke.points
-    .filter((point) => isSampleSchoolSurfacePlacementAllowed(point, stroke.widthMeters))
+    .filter((point) => isSampleSchoolSurfacePlacementAllowed(point, stroke.widthMeters, runtime.bongsun))
     .map((point) => new THREE.Vector3(
       (point.x - 0.5) * SAMPLE_SCHOOL_WIDTH_METERS,
       0.018 + Math.min(0.012, stroke.zIndex * 0.00018),
@@ -376,11 +453,22 @@ function createSurfaceStrokeMesh(runtime: SceneRuntime, stroke: SchoolSurfaceStr
   return mesh;
 }
 
+// Old designs and new strokes share the same garden-local coordinates on both faces.
+function createRearLayer(runtime: SceneRuntime, parent: Group) {
+  if (!runtime.bongsun) return parent;
+  const group = new runtime.THREE.Group();
+  group.rotation.y = Math.PI;
+  group.position.z = localToCampusPoint({ x: 0, z: 0 }, "rear").z;
+  parent.add(group);
+  return group;
+}
+
 function rebuildSurfaces(runtime: SceneRuntime, strokes: SchoolSurfaceStroke[]) {
-  clearGroup(runtime.surfaceRoot, false);
+  clearGroup(runtime.surfaceRoot, true);
+  const rear = createRearLayer(runtime, runtime.surfaceRoot);
   for (const stroke of [...strokes].sort((a, b) => a.zIndex - b.zIndex)) {
     const mesh = createSurfaceStrokeMesh(runtime, stroke);
-    if (mesh) runtime.surfaceRoot.add(mesh);
+    if (mesh) (stroke.gardenSide === "rear" ? rear : runtime.surfaceRoot).add(mesh);
   }
 }
 
@@ -455,6 +543,7 @@ function normalizeModel(runtime: SceneRuntime, template: Object3D, materialId: s
   model.traverse((child) => {
     const mesh = child as Mesh;
     if (mesh.isMesh) {
+      mesh.userData.templateMesh = true;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
     }
@@ -635,7 +724,7 @@ function addLawnSurface(
         toWorld(x1, z1),
         toWorld(x0, z1),
       ];
-      if (!corners.every((point) => isSampleSchoolSurfacePointOpen(point, 0.015))) continue;
+      if (!corners.every((point) => isSampleSchoolSurfacePointOpen(point, 0.015, runtime.bongsun))) continue;
 
       pushVertex(corners[0]);
       pushVertex(corners[3]);
@@ -1053,7 +1142,8 @@ function createLandscapeModel(
 
 function rebuildLandscape(runtime: SceneRuntime, objects: LandscapeObject[], selectedId: string | null) {
   const { THREE, landscapeRoot } = runtime;
-  clearGroup(landscapeRoot, false);
+  clearGroup(landscapeRoot);
+  const rear = createRearLayer(runtime, landscapeRoot);
   for (const object of objects) {
     const material = findLandscapeMaterial(object.materialId);
     if (!material) continue;
@@ -1068,7 +1158,8 @@ function rebuildLandscape(runtime: SceneRuntime, objects: LandscapeObject[], sel
         ? 0.012
         : 0.01;
     model.position.set(point.x, groundOffset, point.z);
-    landscapeRoot.add(model);
+    const layer = object.gardenSide === "rear" ? rear : landscapeRoot;
+    layer.add(model);
     if (object.id === selectedId) {
       const radius = Math.max(0.65, Math.max(object.width, object.height) * object.scale * 0.58);
       const ring = new THREE.Mesh(
@@ -1077,7 +1168,7 @@ function rebuildLandscape(runtime: SceneRuntime, objects: LandscapeObject[], sel
       );
       ring.rotation.x = -Math.PI / 2;
       ring.position.set(point.x, material.category === "paving" || material.id === "lawn" ? 0.07 : 0.035, point.z);
-      landscapeRoot.add(ring);
+      layer.add(ring);
     }
   }
 }
@@ -1093,10 +1184,26 @@ function updatePointer(runtime: SceneRuntime, event: PointerEvent | DragEvent): 
   return true;
 }
 
-function groundPoint(runtime: SceneRuntime, event: PointerEvent | DragEvent): Point2D | null {
+function schoolWallBeforeHit(runtime: SceneRuntime, distance: number) {
+  if (!runtime.bongsun) return false;
+  const ray = runtime.raycaster.ray;
+  const intersection = new runtime.THREE.Vector3();
+  return runtime.schoolWalls.some(wall => ray.intersectBox(wall, intersection)
+    && intersection.distanceToSquared(ray.origin) < distance * distance);
+}
+
+type GroundHit = { point: Point2D; side?: SchoolGardenSide };
+
+function groundPoint(runtime: SceneRuntime, event: PointerEvent | DragEvent): GroundHit | null {
   if (!updatePointer(runtime, event)) return null;
   const hit = runtime.raycaster.intersectObject(runtime.ground, false)[0];
-  return hit ? sampleSchoolToNormalized({ x: hit.point.x, z: hit.point.z }) : null;
+  if (!hit || schoolWallBeforeHit(runtime, hit.distance)) return null;
+  if (!runtime.bongsun) return { point: sampleSchoolToNormalized(hit.point) };
+  for (const side of ["front", "rear"] as const) {
+    const local = campusToLocalPoint(hit.point, side);
+    if (isSampleSchoolSurfacePointOpen(local, 0, true)) return { point: sampleSchoolToNormalized(local), side };
+  }
+  return null;
 }
 
 export function SampleSchool3DScene({
@@ -1108,6 +1215,13 @@ export function SampleSchool3DScene({
   activeMaterialId,
   activeSurfaceId,
   cameraView,
+  cameraResetKey = 0,
+  readOnly = false,
+  bongsun = isBongsunSchool(schoolName),
+  gardenSide = "front",
+  onGardenSideChange,
+  onUnavailable,
+  onReady,
   onPlace,
   onMove,
   onSelect,
@@ -1121,7 +1235,14 @@ export function SampleSchool3DScene({
   activeMaterialId: string | null;
   activeSurfaceId: SchoolSurfaceMaterialId | null;
   cameraView: SampleSchoolCameraView;
-  onPlace: (materialId: string, point: Point2D) => void;
+  cameraResetKey?: number;
+  readOnly?: boolean;
+  bongsun?: boolean;
+  gardenSide?: SchoolGardenSide;
+  onGardenSideChange?: (side: SchoolGardenSide) => void;
+  onUnavailable?: () => void;
+  onReady?: () => void;
+  onPlace: (materialId: string, point: Point2D, side?: SchoolGardenSide) => void;
   onMove: (objectId: string, point: Point2D) => void;
   onSelect: (objectId: string | null) => void;
   onPaintSurface: SceneCallbacks["onPaintSurface"];
@@ -1129,15 +1250,17 @@ export function SampleSchool3DScene({
   const hostRef = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<SceneRuntime | null>(null);
   const callbacksRef = useRef<SceneCallbacks>({ onPlace, onMove, onSelect, onPaintSurface });
+  const lifecycleRef = useRef({ onReady, onUnavailable, onGardenSideChange });
   const activeMaterialRef = useRef(activeMaterialId);
   const activeSurfaceRef = useRef(activeSurfaceId);
   const objectsRef = useRef(objects);
   const strokesRef = useRef(surfaceStrokes);
   const selectedIdRef = useRef(selectedId);
   const initialViewRef = useRef(cameraView);
-  const [failed, setFailed] = useState(false);
+  const [sceneState, setSceneState] = useState<"loading" | "ready" | "failed">("loading");
 
   useEffect(() => { callbacksRef.current = { onPlace, onMove, onSelect, onPaintSurface }; }, [onMove, onPaintSurface, onPlace, onSelect]);
+  useEffect(() => { lifecycleRef.current = { onReady, onUnavailable, onGardenSideChange }; }, [onReady, onUnavailable, onGardenSideChange]);
   useEffect(() => { activeMaterialRef.current = activeMaterialId; }, [activeMaterialId]);
   useEffect(() => { activeSurfaceRef.current = activeSurfaceId; }, [activeSurfaceId]);
   useEffect(() => { objectsRef.current = objects; }, [objects]);
@@ -1148,8 +1271,8 @@ export function SampleSchool3DScene({
     const host = hostRef.current;
     if (!host) return;
     let disposed = false;
-    let cleanup = () => undefined;
-    setFailed(false);
+    let cleanup: () => void = () => undefined;
+    setSceneState("loading");
 
     void (async () => {
       try {
@@ -1161,24 +1284,35 @@ export function SampleSchool3DScene({
         if (disposed) return;
 
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xe8efec);
+        scene.background = new THREE.Color(bongsun ? 0xe4f0f5 : 0xe8efec);
+        if (bongsun) scene.fog = new THREE.Fog(0xe6edf0, 35, 96);
         const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 120);
         const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFShadowMap;
-        renderer.domElement.setAttribute("aria-label", "빈 학교 부지에 바닥과 실제 조경 재료를 배치하는 3D 공간");
+        renderer.domElement.setAttribute("aria-label", bongsun ? "봉선중학교 본관 앞 조경 공간" : "빈 학교 부지에 바닥과 실제 조경 재료를 배치하는 3D 공간");
         renderer.domElement.style.touchAction = "none";
+        if (bongsun) {
+          renderer.domElement.tabIndex = 0;
+          renderer.domElement.setAttribute("aria-keyshortcuts", "ArrowLeft ArrowRight Home End");
+        }
         host.appendChild(renderer.domElement);
 
         const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
+        const releaseRenderer = () => {
+          controls.dispose();
+          renderer.dispose();
+          renderer.domElement.remove();
+        };
+        cleanup = releaseRenderer;
+        controls.enableDamping = !bongsun;
         controls.dampingFactor = 0.08;
         controls.enablePan = false;
 
-        scene.add(new THREE.HemisphereLight(0xffffff, 0x667165, 1.65));
-        const sun = new THREE.DirectionalLight(0xfff4dc, 2.35);
+        scene.add(new THREE.HemisphereLight(bongsun ? 0xf0f7ff : 0xffffff, bongsun ? 0x968779 : 0x667165, bongsun ? 1.75 : 1.65));
+        const sun = new THREE.DirectionalLight(0xfff4dc, bongsun ? 1.8 : 2.35);
         sun.position.set(-12, 24, 13);
         sun.castShadow = true;
         sun.shadow.mapSize.set(2048, 2048);
@@ -1192,6 +1326,10 @@ export function SampleSchool3DScene({
         const landscapeRoot = new THREE.Group();
         scene.add(surfaceRoot, landscapeRoot);
         const runtime: SceneRuntime = {
+          bongsun,
+          schoolWalls: [],
+          gardenSide: "front",
+          orbitFit: 1,
           THREE,
           scene,
           camera,
@@ -1211,15 +1349,34 @@ export function SampleSchool3DScene({
           paverSurfaceTexture: null,
           cameraView: initialViewRef.current,
         };
+        const releaseScene = () => {
+          clearGroup(runtime.surfaceRoot, true);
+          for (const material of runtime.surfaceMaterials.values()) material.dispose();
+          disposeObject(scene);
+          for (const template of runtime.modelTemplates.values()) disposeObject(template);
+          for (const texture of runtime.textures.values()) texture.dispose();
+          for (const texture of runtime.generatedTextures) texture.dispose();
+          releaseRenderer();
+          if (runtimeRef.current === runtime) runtimeRef.current = null;
+        };
+        cleanup = releaseScene;
         const textureLoader = new THREE.TextureLoader();
+        const materials = readOnly
+          ? LANDSCAPE_MATERIALS.filter((material) => material.pickerGroup === "flowers"
+            || objectsRef.current.some((object) => object.materialId === material.id))
+          : LANDSCAPE_MATERIALS;
         const textureUrls = [...new Set([
-          ...CAMPUS_TEXTURE_URLS,
+          ...(bongsun ? [CAMPUS_TEXTURE_URLS[0], BONGSUN_NAMEPLATE_URL] : CAMPUS_TEXTURE_URLS),
           ...SAMPLE_SCHOOL_SURFACE_MATERIALS.map((material) => material.textureUrl),
-          ...LANDSCAPE_MATERIALS.flatMap((material) => [material.planAssetUrl, material.sideAssetUrl]).filter((url): url is string => Boolean(url)),
+          ...materials.flatMap((material) => [material.planAssetUrl, material.sideAssetUrl]).filter((url): url is string => Boolean(url)),
         ])];
         await Promise.all(textureUrls.map(async (url) => {
           try {
             const texture = await textureLoader.loadAsync(url);
+            if (disposed) {
+              texture.dispose();
+              return;
+            }
             texture.colorSpace = THREE.SRGBColorSpace;
             texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
             runtime.textures.set(url, texture);
@@ -1227,97 +1384,108 @@ export function SampleSchool3DScene({
             // One failed optional texture must not block the lesson.
           }
         }));
+        if (disposed) return;
 
         const gltfLoader = new GLTFLoader();
-        const modelUrls = [...new Set(LANDSCAPE_MATERIALS.map((material) => material.modelAssetUrl).filter((url): url is string => Boolean(url)))];
+        const modelUrls = [...new Set(materials.map((material) => material.modelAssetUrl).filter((url): url is string => Boolean(url)))];
         await Promise.all(modelUrls.map(async (url) => {
           try {
             const gltf = await gltfLoader.loadAsync(url);
+            if (disposed) {
+              disposeObject(gltf.scene);
+              return;
+            }
             runtime.modelTemplates.set(url, gltf.scene);
           } catch {
             // Photo fallback remains available when a model cannot load.
           }
         }));
 
-        if (disposed) {
-          for (const texture of runtime.textures.values()) texture.dispose();
-          renderer.dispose();
-          return;
-        }
+        if (disposed) return;
         runtime.lawnSurfaceTexture = createLawnSurfaceTexture(runtime, runtime.textures.get(LAWN_TEXTURE_URL));
         runtime.pathSurfaceTexture = createPavingTexture(runtime, "path");
         runtime.paverSurfaceTexture = createPavingTexture(runtime, "paver");
 
-        const schoolLogo = await loadSchoolLogoImage(schoolLogoDataUrl);
-        if (disposed) {
-          for (const texture of runtime.textures.values()) texture.dispose();
-          renderer.dispose();
-          return;
-        }
+        const schoolLogo = bongsun ? null : await loadSchoolLogoImage(schoolLogoDataUrl);
+        if (disposed) return;
         runtime.ground = buildSampleCampus(runtime, schoolName, schoolLogo);
         createSurfaceMaterials(runtime);
         runtimeRef.current = runtime;
         rebuildSurfaces(runtime, strokesRef.current);
         rebuildLandscape(runtime, objectsRef.current, selectedIdRef.current);
-        applyCamera(runtime, initialViewRef.current);
-
+        let editingPointer: number | null = null;
         let draggingId: string | null = null;
-        let paintingStrokeId: string | null = null;
+        let paintingStroke: { id: string; side?: SchoolGardenSide } | null = null;
+        let draggedSide: SchoolGardenSide | undefined;
+        let pendingPlacement: { pointer: number; x: number; y: number; material: string } | null = null;
+        const beginEditing = (event: PointerEvent) => {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          editingPointer = event.pointerId;
+          renderer.domElement.setPointerCapture(event.pointerId);
+          controls.enabled = false;
+        };
         const selectObjectAtPointer = (event: PointerEvent): string | null => {
           if (!updatePointer(runtime, event)) return null;
           const hit = runtime.raycaster.intersectObject(runtime.landscapeRoot, true)
-            .find((intersection) => getLandscapeObjectId(intersection.object));
-          return hit ? getLandscapeObjectId(hit.object) : null;
+            .find((intersection) => intersection.object.visible && getLandscapeObjectId(intersection.object));
+          return hit && !schoolWallBeforeHit(runtime, hit.distance) ? getLandscapeObjectId(hit.object) : null;
         };
         const handlePointerDown = (event: PointerEvent) => {
+          if (readOnly || event.button !== 0) return;
+          if (!event.isPrimary) {
+            pendingPlacement = null;
+            if (editingPointer !== null) event.stopImmediatePropagation();
+            return;
+          }
           const surfaceId = activeSurfaceRef.current;
           if (surfaceId) {
-            const point = groundPoint(runtime, event);
+            const hit = groundPoint(runtime, event);
             const surface = SAMPLE_SCHOOL_SURFACE_MATERIALS.find((candidate) => candidate.id === surfaceId);
-            if (point && surface && isSampleSchoolSurfacePlacementAllowed(point, surface.widthMeters)) {
-              event.preventDefault();
-              paintingStrokeId = `surface-stroke-${crypto.randomUUID()}`;
-              controls.enabled = false;
-              callbacksRef.current.onPaintSurface(paintingStrokeId, surfaceId, point, true);
-              renderer.domElement.setPointerCapture(event.pointerId);
+            if (hit && surface && isSampleSchoolSurfacePlacementAllowed(hit.point, surface.widthMeters, runtime.bongsun)) {
+              beginEditing(event);
+              paintingStroke = { id: `surface-stroke-${crypto.randomUUID()}`, side: hit.side };
+              callbacksRef.current.onPaintSurface(paintingStroke.id, surfaceId, hit.point, true, hit.side);
             }
             return;
           }
 
           const objectId = selectObjectAtPointer(event);
           if (objectId) {
-            event.preventDefault();
+            beginEditing(event);
             draggingId = objectId;
-            controls.enabled = false;
+            draggedSide = bongsun ? objectsRef.current.find(object => object.id === objectId)?.gardenSide ?? "front" : undefined;
             callbacksRef.current.onSelect(objectId);
-            renderer.domElement.setPointerCapture(event.pointerId);
             return;
           }
           const materialId = activeMaterialRef.current;
           if (materialId) {
-            const point = groundPoint(runtime, event);
-            if (point) callbacksRef.current.onPlace(materialId, point);
-            controls.enabled = false;
-            window.requestAnimationFrame(() => { controls.enabled = true; });
+            // A tap plants. A drag or pinch belongs to OrbitControls.
+            pendingPlacement = { pointer: event.pointerId, x: event.clientX, y: event.clientY, material: materialId };
           } else {
             callbacksRef.current.onSelect(null);
           }
         };
         const handlePointerMove = (event: PointerEvent) => {
-          if (paintingStrokeId && activeSurfaceRef.current) {
+          if (readOnly) return;
+          if (pendingPlacement && Math.hypot(event.clientX - pendingPlacement.x, event.clientY - pendingPlacement.y) > 6) {
+            pendingPlacement = null;
+          }
+          if (editingPointer !== null && event.pointerId !== editingPointer) return;
+          if (paintingStroke && activeSurfaceRef.current) {
             event.preventDefault();
-            const point = groundPoint(runtime, event);
+            const hit = groundPoint(runtime, event);
             const surface = SAMPLE_SCHOOL_SURFACE_MATERIALS.find((candidate) => candidate.id === activeSurfaceRef.current);
-            if (point && surface && isSampleSchoolSurfacePlacementAllowed(point, surface.widthMeters)) {
-              callbacksRef.current.onPaintSurface(paintingStrokeId, activeSurfaceRef.current, point, false);
+            if (hit && hit.side === paintingStroke.side && surface && isSampleSchoolSurfacePlacementAllowed(hit.point, surface.widthMeters, runtime.bongsun)) {
+              callbacksRef.current.onPaintSurface(paintingStroke.id, activeSurfaceRef.current, hit.point, false, hit.side);
             }
             renderer.domElement.style.cursor = "crosshair";
             return;
           }
           if (draggingId) {
             event.preventDefault();
-            const point = groundPoint(runtime, event);
-            if (point) callbacksRef.current.onMove(draggingId, point);
+            const hit = groundPoint(runtime, event);
+            if (hit && hit.side === draggedSide) callbacksRef.current.onMove(draggingId, hit.point);
             renderer.domElement.style.cursor = "grabbing";
             return;
           }
@@ -1325,11 +1493,32 @@ export function SampleSchool3DScene({
             ? "grab"
             : activeSurfaceRef.current || activeMaterialRef.current ? "crosshair" : "default";
         };
-        const stopPointerAction = () => {
+        const stopPointerAction = (event: PointerEvent) => {
+          if (readOnly) return;
+          if (pendingPlacement?.pointer === event.pointerId) {
+            if (event.type === "pointerup" && Math.hypot(event.clientX - pendingPlacement.x, event.clientY - pendingPlacement.y) <= 6) {
+              const hit = groundPoint(runtime, event);
+              if (hit) callbacksRef.current.onPlace(pendingPlacement.material, hit.point, hit.side);
+            }
+            pendingPlacement = null;
+          }
+          if (editingPointer !== event.pointerId) return;
+          editingPointer = null;
           draggingId = null;
-          paintingStrokeId = null;
+          paintingStroke = null;
           controls.enabled = true;
           renderer.domElement.style.cursor = activeSurfaceRef.current || activeMaterialRef.current ? "crosshair" : "default";
+        };
+        const handleOrbitKey = (event: KeyboardEvent) => {
+          if (!bongsun || editingPointer !== null) return;
+          switch (event.key) {
+            case "ArrowLeft": controls.rotateLeft(BONGSUN_ORBIT_STEP * Math.PI / 180); break;
+            case "ArrowRight": controls.rotateLeft(-BONGSUN_ORBIT_STEP * Math.PI / 180); break;
+            case "Home": applyCamera(runtime, "front"); break;
+            case "End": applyCamera(runtime, "rear"); break;
+            default: return;
+          }
+          event.preventDefault();
         };
         const handleDragOver = (event: DragEvent) => {
           event.preventDefault();
@@ -1337,55 +1526,80 @@ export function SampleSchool3DScene({
         };
         const handleDrop = (event: DragEvent) => {
           event.preventDefault();
+          if (readOnly) return;
           const materialId = event.dataTransfer?.getData("text/gardening-material");
-          const point = groundPoint(runtime, event);
-          if (materialId && point) callbacksRef.current.onPlace(materialId, point);
+          const hit = groundPoint(runtime, event);
+          if (materialId && hit) callbacksRef.current.onPlace(materialId, hit.point, hit.side);
         };
-        renderer.domElement.addEventListener("pointerdown", handlePointerDown);
+        renderer.domElement.addEventListener("pointerdown", handlePointerDown, true);
         renderer.domElement.addEventListener("pointermove", handlePointerMove);
         renderer.domElement.addEventListener("pointerup", stopPointerAction);
         renderer.domElement.addEventListener("pointercancel", stopPointerAction);
+        renderer.domElement.addEventListener("lostpointercapture", stopPointerAction);
+        renderer.domElement.addEventListener("keydown", handleOrbitKey);
         renderer.domElement.addEventListener("dragover", handleDragOver);
         renderer.domElement.addEventListener("drop", handleDrop);
 
+        const syncOrbit = () => {
+          const side = trackCampusOrbit(runtime);
+          if (runtime.gardenSide === side) return;
+          runtime.gardenSide = side;
+          lifecycleRef.current.onGardenSideChange?.(side);
+          renderer.domElement.setAttribute("aria-label", side === "rear"
+            ? "봉선중학교 수업용 뒤뜰 조경 공간" : "봉선중학교 본관 앞 조경 공간");
+        };
+        let sized = false;
         const resize = () => {
           const width = Math.max(1, host.clientWidth);
           const height = Math.max(1, host.clientHeight);
           renderer.setSize(width, height, false);
           camera.aspect = width / height;
           camera.updateProjectionMatrix();
+          if (bongsun) {
+            // OrbitControls measures swipes against height; use width for the same half-turn on tablets.
+            controls.rotateSpeed = height / width;
+            if (sized) syncOrbit();
+          }
+          sized = true;
         };
         const resizeObserver = new ResizeObserver(resize);
+        let frame = 0;
+        cleanup = () => {
+          window.cancelAnimationFrame(frame);
+          resizeObserver.disconnect();
+          controls.removeEventListener("change", syncOrbit);
+          renderer.domElement.removeEventListener("pointerdown", handlePointerDown, true);
+          renderer.domElement.removeEventListener("pointermove", handlePointerMove);
+          renderer.domElement.removeEventListener("pointerup", stopPointerAction);
+          renderer.domElement.removeEventListener("pointercancel", stopPointerAction);
+          renderer.domElement.removeEventListener("lostpointercapture", stopPointerAction);
+          renderer.domElement.removeEventListener("keydown", handleOrbitKey);
+          renderer.domElement.removeEventListener("dragover", handleDragOver);
+          renderer.domElement.removeEventListener("drop", handleDrop);
+          releaseScene();
+        };
         resizeObserver.observe(host);
         resize();
-
-        let frame = 0;
+        applyCamera(runtime, initialViewRef.current);
+        if (bongsun) {
+          controls.addEventListener("change", syncOrbit);
+          syncOrbit();
+        }
         const render = () => {
           controls.update();
           renderer.render(scene, camera);
           frame = window.requestAnimationFrame(render);
         };
         render();
-
-        cleanup = () => {
-          window.cancelAnimationFrame(frame);
-          resizeObserver.disconnect();
-          renderer.domElement.removeEventListener("pointerdown", handlePointerDown);
-          renderer.domElement.removeEventListener("pointermove", handlePointerMove);
-          renderer.domElement.removeEventListener("pointerup", stopPointerAction);
-          renderer.domElement.removeEventListener("pointercancel", stopPointerAction);
-          renderer.domElement.removeEventListener("dragover", handleDragOver);
-          renderer.domElement.removeEventListener("drop", handleDrop);
-          controls.dispose();
-          disposeObject(scene);
-          for (const texture of runtime.textures.values()) texture.dispose();
-          for (const texture of runtime.generatedTextures) texture.dispose();
-          renderer.dispose();
-          renderer.domElement.remove();
-          runtimeRef.current = null;
-        };
+        setSceneState("ready");
+        lifecycleRef.current.onReady?.();
       } catch {
-        if (!disposed) setFailed(true);
+        if (!disposed) {
+          cleanup();
+          cleanup = () => undefined;
+          setSceneState("failed");
+          lifecycleRef.current.onUnavailable?.();
+        }
       }
     })();
 
@@ -1393,7 +1607,7 @@ export function SampleSchool3DScene({
       disposed = true;
       cleanup();
     };
-  }, [schoolLogoDataUrl, schoolName]);
+  }, [bongsun, readOnly, schoolLogoDataUrl, schoolName]);
 
   useEffect(() => {
     if (runtimeRef.current) rebuildLandscape(runtimeRef.current, objects, selectedId);
@@ -1406,11 +1620,22 @@ export function SampleSchool3DScene({
   useEffect(() => {
     initialViewRef.current = cameraView;
     applyCamera(runtimeRef.current, cameraView);
-  }, [cameraView]);
+  }, [cameraResetKey, cameraView]);
 
+  const gardenLabel = gardenSide === "rear" ? "수업용 뒤뜰" : "본관 앞";
   return (
-    <div ref={hostRef} className="sample-school-scene" role="application" aria-label="빈 학교 부지에 바닥과 조경 재료를 만드는 3D 조경 설계 공간">
-      {failed ? <p className="sample-school-scene__error">이 기기에서는 3D 학교를 표시하지 못했습니다.</p> : null}
+    <div ref={hostRef} className="sample-school-scene" role="application" aria-label={bongsun ? `봉선중학교 ${gardenLabel} 3D 조경 공간` : "빈 학교 부지에 바닥과 조경 재료를 만드는 3D 조경 설계 공간"}>
+      {sceneState === "loading" && bongsun && !readOnly ? (
+        <p className="sample-school-scene__error" role="status">{gardenLabel} 조경 공간을 불러오는 중…</p>
+      ) : null}
+      {sceneState === "failed" && bongsun && !readOnly ? (
+        <BongsunCompatibleEditor
+          objects={objects} surfaceStrokes={surfaceStrokes} selectedId={selectedId}
+          activeMaterialId={activeMaterialId} activeSurfaceId={activeSurfaceId}
+          gardenSide={gardenSide} onGardenSideChange={onGardenSideChange} cameraView={cameraView} cameraResetKey={cameraResetKey}
+          onPlace={onPlace} onMove={onMove} onSelect={onSelect} onPaintSurface={onPaintSurface}
+        />
+      ) : sceneState === "failed" ? <p className="sample-school-scene__error">이 기기에서는 3D 학교를 표시하지 못했습니다.</p> : null}
     </div>
   );
 }

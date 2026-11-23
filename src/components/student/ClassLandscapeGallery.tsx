@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { isOrbitSchoolScene } from "@/lib/sample-school";
+import { BongsunDesignReview } from "./BongsunDesignReview";
 import { LandscapeDesignPreview } from "@/components/student/LandscapeDesignPreview";
 import { INTENTION_KEYWORDS } from "@/components/student/LandscapeIntentionForm";
 import { DEMO_GALLERY_ENTRIES } from "@/data/demo-gallery";
@@ -29,14 +31,49 @@ export function ClassLandscapeGallery({
   const galleryValue = useBrowserStorageValue("local", getClassLandscapeGalleryStorageKey(project.id));
   const kitsValue = useBrowserStorageValue("local", MINI_GARDEN_KITS_STORAGE_KEY);
   const [activeKeyword, setActiveKeyword] = useState("전체");
+  const [sharedEntries, setSharedEntries] = useState<LandscapeGalleryEntry[] | null>(null);
+  const [connectionError, setConnectionError] = useState(false);
+  useEffect(() => {
+    if (!project.sharedClass) return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    async function refresh() {
+      try {
+        const response = await fetch(`/api/school-classes/${encodeURIComponent(project.classCode)}/works`, {
+          cache: "no-store", signal: controller.signal,
+        });
+        if (!response.ok) throw new Error("작품 목록 조회 실패");
+        const { entries } = await response.json() as { entries: LandscapeGalleryEntry[] };
+        if (!Array.isArray(entries)) throw new Error("잘못된 작품 목록");
+        if (!controller.signal.aborted) {
+          setSharedEntries(entries.filter(entry => entry.schoolProjectId === project.id));
+          setConnectionError(false);
+        }
+      } catch {
+        if (!controller.signal.aborted) setConnectionError(true);
+      } finally {
+        if (!controller.signal.aborted) timer = setTimeout(refresh, 10_000);
+      }
+    }
+    void refresh();
+    return () => { controller.abort(); clearTimeout(timer); };
+  }, [project.classCode, project.id, project.sharedClass]);
+
   const galleryEntries = useMemo(() => {
     const stored = parseStoredLandscapeGallery(galleryValue);
+    if (project.sharedClass) {
+      const entries = new Map<string, LandscapeGalleryEntry>();
+      for (const entry of [...stored, ...(sharedEntries ?? [])]) {
+        if (entry.schoolProjectId === project.id) entries.set(entry.studentSessionId, entry);
+      }
+      return Array.from(entries.values()).sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+    }
     const storedSessionIds = new Set(stored.map((entry) => entry.studentSessionId));
     const demoEntries = DEMO_GALLERY_ENTRIES
       .filter((entry) => !storedSessionIds.has(entry.studentSessionId))
       .map((entry) => ({ ...entry, schoolProjectId: project.id }));
     return [...stored, ...demoEntries];
-  }, [galleryValue, project.id]);
+  }, [galleryValue, project.id, project.sharedClass, sharedEntries]);
   const visibleEntries = activeKeyword === "전체"
     ? galleryEntries
     : galleryEntries.filter((entry) => entry.intentionKeyword === activeKeyword);
@@ -69,12 +106,15 @@ export function ClassLandscapeGallery({
         ))}
       </nav>
 
+      {project.sharedClass && connectionError ? (
+        <p role="status" className="gallery-empty">우리 반 작품을 새로 불러오지 못했어요. 연결되면 자동으로 다시 불러옵니다.</p>
+      ) : null}
       <section className="gallery-grid" aria-live="polite">
         {visibleEntries.map((entry) => (
-          <GalleryCard key={entry.id} entry={entry} isMine={entry.studentSessionId === sessionId} currentNickname={nickname} />
+          <GalleryCard key={entry.studentSessionId} entry={entry} campus={project.campusModel} isMine={entry.studentSessionId === sessionId} currentNickname={nickname} />
         ))}
       </section>
-      {visibleEntries.length === 0 ? <p className="gallery-empty">이 키워드로 제출된 설계가 아직 없습니다.</p> : null}
+      {visibleEntries.length === 0 && (!project.sharedClass || sharedEntries !== null) ? <p className="gallery-empty">이 키워드로 제출된 설계가 아직 없습니다.</p> : null}
 
       <footer className="gallery-next-step">
         <div><span>PART 1 COMPLETE</span><strong>실제 공간 조경설계를 마쳤습니다.</strong><p>다음 단계에서는 실제 수업에서 받을 화분과 재료를 확인합니다.</p></div>
@@ -86,10 +126,12 @@ export function ClassLandscapeGallery({
 
 function GalleryCard({
   entry,
+  campus,
   isMine,
   currentNickname,
 }: {
   entry: LandscapeGalleryEntry;
+  campus?: SchoolProject["campusModel"];
   isMine: boolean;
   currentNickname: string;
 }) {
@@ -101,10 +143,12 @@ function GalleryCard({
         <div><span>{isMine ? "나의 설계" : "학생 설계자"}</span><strong>{isMine ? currentNickname : entry.nickname}</strong></div>
         <em>{entry.intentionKeyword} 중심</em>
       </header>
-      <div className="gallery-card-previews">
+      {isOrbitSchoolScene(entry.sceneVersion) ? (
+        <BongsunDesignReview campus={campus} objects={entry.objects} surfaceStrokes={entry.surfaceStrokes} />
+      ) : <div className="gallery-card-previews">
         <LandscapeDesignPreview objects={entry.objects} variant="plan" label={`${entry.nickname}의 조경 배치도 썸네일`} />
         <LandscapeDesignPreview objects={entry.objects} variant="spatial" label={`${entry.nickname}의 3D 미리보기`} />
-      </div>
+      </div>}
       <div className="gallery-card-body">
         <blockquote>“{entry.intentionReason}”</blockquote>
         <dl><div><dt>배치 재료</dt><dd>{entry.objects.length}개</dd></div><div><dt>사용 범주</dt><dd>{categories}종</dd></div></dl>

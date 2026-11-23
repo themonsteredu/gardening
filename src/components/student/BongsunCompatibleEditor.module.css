@@ -1,0 +1,44 @@
+.editor,
+.viewer {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #e4eee9;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+
+.editor {
+  position: absolute;
+  inset: 0;
+}
+
+.viewer {
+  position: relative;
+  touch-action: pan-y;
+}
+
+.editor:focus-visible, .viewer:focus-visible {
+  outline: 3px solid #28583e;
+  outline-offset: -4px;
+}
+
+.editor[data-placing="true"] {
+  cursor: crosshair;
+}
+
+.item {
+  cursor: grab;
+}
+
+.editor:active,
+.viewer:active,
+.item:active {
+  cursor: grabbing;
+}
+
+.item:focus-visible {
+  outline: 2px solid #ffe19a;
+}

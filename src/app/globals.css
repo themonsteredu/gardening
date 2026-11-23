@@ -128,6 +128,7 @@
 
 .teacher-simple-actions .teacher-simple-adjust,
 .teacher-kit-link { color: #66726a; font-size: .88rem; text-decoration: underline; }
+.teacher-heading-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; }
 .teacher-kit-link { display: inline-flex; margin-top: 8px; }
 
 .student-design-studio .student-plan-toolbar {
@@ -6149,6 +6150,15 @@ textarea:focus-visible {
   line-height: 1.2;
 }
 
+.sample-orbit-hint {
+  margin: 0;
+  color: #244533;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.45;
+  word-break: keep-all;
+}
+
 .sample-school-toolbar__status {
   justify-items: end;
   color: #233b2e;
@@ -6185,6 +6195,14 @@ textarea:focus-visible {
   color: #fff;
   background: #245b41;
   box-shadow: 0 4px 12px rgba(29, 72, 49, 0.2);
+}
+
+.sample-camera-tabs button.sample-orbit-reset {
+  min-height: 40px;
+  padding-inline: 0.9rem;
+  color: #31543f;
+  font-size: 0.82rem;
+  cursor: pointer;
 }
 
 .sample-school-canvas {

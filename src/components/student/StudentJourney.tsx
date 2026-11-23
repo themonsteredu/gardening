@@ -13,7 +13,7 @@ import { MiniGardenFinalComparison } from "@/components/student/MiniGardenFinalC
 import { DEMO_MINI_GARDEN_KIT } from "@/data/demo-mini-garden";
 import { DEMO_PROJECT } from "@/data/demo-project";
 import type { SchoolProject, StudentSession } from "@/domain/models";
-import { getStudentSessionStorageKey, MINI_GARDEN_KITS_STORAGE_KEY, parseStoredMiniGardenKits, parseStoredProject, PROJECT_STORAGE_KEY } from "@/lib/project-store";
+import { getSharedProjectSnapshotStorageKey, getStudentSessionStorageKey, MINI_GARDEN_KITS_STORAGE_KEY, parseStoredMiniGardenKits, parseStoredProject, PROJECT_STORAGE_KEY } from "@/lib/project-store";
 import { useBrowserStorageValue, writeBrowserStorage } from "@/lib/use-browser-storage";
 
 interface StoredStudentContext {
@@ -47,14 +47,21 @@ export function StudentJourney({ sessionId }: { sessionId: string }) {
     if (!storedContext) return { ...fallbackContext, project: teacherProject };
     try {
       const parsed = JSON.parse(storedContext) as StoredStudentContext;
+      if (parsed.project.sharedClass) return parsed;
       return { ...parsed, project: teacherProject.id === parsed.project.id ? teacherProject : parsed.project };
     } catch {
       return { ...fallbackContext, project: teacherProject };
     }
   }, [fallbackContext, storedContext, teacherProject]);
-  const project = context.project.miniGardenKitId
-    ? context.project
-    : { ...context.project, miniGardenKitId: DEMO_MINI_GARDEN_KIT.id };
+  const classSnapshot = useBrowserStorageValue("local", getSharedProjectSnapshotStorageKey(context.project.id));
+  const sessionProject = useMemo(() => {
+    if (!context.project.sharedClass || !classSnapshot) return context.project;
+    const snapshot = parseStoredProject(classSnapshot);
+    return snapshot.id === context.project.id ? snapshot : context.project;
+  }, [classSnapshot, context.project]);
+  const project = sessionProject.miniGardenKitId
+    ? sessionProject
+    : { ...sessionProject, miniGardenKitId: DEMO_MINI_GARDEN_KIT.id };
   const isMiniGardenView = view === "miniPot" || view === "sandLayers" || view === "objectPlacement" || view === "makingPlan" || view === "finalComparison";
   const journeyStep = view === "gallery" ? 1 : isMiniGardenView && view !== "makingPlan" && view !== "finalComparison" ? 2 : view === "makingPlan" || view === "finalComparison" ? 3 : 0;
 

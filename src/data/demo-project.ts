@@ -17,6 +17,16 @@ export const DEMO_PROJECT: SchoolProject = {
   miniGardenKitId: DEMO_MINI_GARDEN_KIT.id,
 };
 
+export const BONGSUN_PRACTICE_PROJECT: SchoolProject = {
+  ...DEMO_PROJECT,
+  id: "practice-bongsun-garden",
+  classCode: "BONGSUN3D",
+  schoolName: "봉선중학교",
+  className: "개인 연습",
+  title: "봉선중학교 본관과 뒤뜰 꾸미기",
+  mission: "본관 앞 화단과 수업용 뒤뜰을 지나는 친구들이 즐길 수 있도록 꽃과 나무를 배치해 보세요.",
+};
+
 export const DEMO_STUDENTS: StudentSession[] = [
   {
     id: "student-minji",
